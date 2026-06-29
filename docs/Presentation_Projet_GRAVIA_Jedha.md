@@ -15,7 +15,7 @@ GRAVIA s'inscrit dans le secteur de la **sécurité routière et des secours d'u
 
 L'organisation porteuse, **VigiRoute**, est un **opérateur d'intérêt public** (structure de type partenariat entre l'Observatoire national interministériel de la sécurité routière et les services de secours). De taille moyenne (quelques centaines d'agents), elle dispose d'une direction des systèmes d'information, d'un délégué à la protection des données (DPO) et d'un responsable de la sécurité (RSSI). Sa mission : améliorer l'efficacité de la réponse aux accidents corporels de la circulation.
 
-En France, on dénombre **environ 55 000 accidents corporels et plus de 3 000 décès par an**, auxquels s'ajoutent des dizaines de milliers de blessés hospitalisés. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
+En France, la route fait **environ 3 400 morts et 235 000 blessés par an, dont près de 16 000 blessés graves** (ONISR, bilan définitif 2024), pour de l'ordre de **50 000 accidents corporels** enregistrés chaque année. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
 
 Le caractère réglementé du secteur (santé) et la présence d'une gouvernance structurée facilitent la couverture des compétences de conformité, de gouvernance et d'éthique attendues.
 
@@ -63,10 +63,12 @@ Les données mobilisées couvrent les **trois dimensions des 3V**, de manière n
 | Dimension | Réalité du projet | Ordre de grandeur |
 |---|---|---|
 | **Volume** | Historique **BAAC** 2005→2024 + données enrichies (météo, géo) | Plusieurs millions de lignes `usagers` (~50–60 000 accidents/an sur ~20 ans) |
-| **Vélocité** | Flux temps réel des signalements + flux trafic, en plus du batch annuel | Plusieurs **milliers de signalements/jour** avec forts pics horaires ; flux trafic rafraîchi toutes les quelques minutes sur des milliers de points |
+| **Vélocité** | Flux temps réel des signalements + flux trafic, en plus du batch annuel | De l'ordre de **150 accidents corporels/jour** en moyenne (~50 000/an), plusieurs centaines à milliers de signalements/jour en incluant les accidents matériels, avec de forts pics horaires ; flux trafic rafraîchi toutes les quelques minutes |
 | **Variété** | Structuré + semi-structuré + flux événementiel | BAAC (4 tables relationnelles), météo/géo (semi-structuré), signalements (flux JSON) |
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
+
+> *Les chiffres d'accidentalité (accidents corporels, tués, blessés) proviennent de l'ONISR (voir Sources). Les débits de signalements temps réel sont une **estimation du scénario** VigiRoute, dérivée de la volumétrie annuelle d'accidents.*
 
 ---
 
@@ -170,3 +172,13 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 | **Bloc 4 — Solution IA** | Code de la solution IA (dépôt 1) ; pipeline CI/CD + IaC (dépôt 2) ; modèle suivi dans MLflow ; API FastAPI ; rapports d'explicabilité et d'équité ; monitoring de dérive (Evidently) ; vidéo de la solution en production |
 
 **Format de remise.** Document final attendu au format `.doc` nommé « Nom Prénom », déposé sur le Drive de l'école avant le **jeudi 2 juillet 2026**.
+
+---
+
+## Sources
+
+- ONISR — *Bilan définitif 2024 de la sécurité routière* : https://www.onisr.securite-routiere.gouv.fr/en/road-safety-performance/annual-road-safety-reports/2024-road-safety-annual-report (≈ 3 432 tués France entière, ≈ 235 000 blessés dont ≈ 16 000 graves).
+- ONISR — *Bilan 2023 de la sécurité routière* : https://www.onisr.securite-routiere.gouv.fr/en/road-safety-performance/annual-road-safety-reports/2023-road-safety-annual-report
+- Données BAAC (accidents corporels 2005→2024), data.gouv.fr : https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/
+
+> Le **nombre d'accidents corporels** (~50 000/an) est un ordre de grandeur issu des bases BAAC ; les **débits de signalements temps réel** sont une estimation propre au scénario fictif VigiRoute, non issue d'une statistique officielle.
