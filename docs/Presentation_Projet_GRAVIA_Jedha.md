@@ -15,6 +15,8 @@ GRAVIA s'inscrit dans le secteur de la **sécurité routière et des secours d'u
 
 L'organisation porteuse, **VigiRoute**, est un **opérateur d'intérêt public** (structure de type partenariat entre l'Observatoire national interministériel de la sécurité routière et les services de secours). De taille moyenne (quelques centaines d'agents), elle dispose d'une direction des systèmes d'information, d'un délégué à la protection des données (DPO) et d'un responsable de la sécurité (RSSI). Sa mission : améliorer l'efficacité de la réponse aux accidents corporels de la circulation.
 
+En France, on dénombre **environ 55 000 accidents corporels et plus de 3 000 décès par an**, auxquels s'ajoutent des dizaines de milliers de blessés hospitalisés. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
+
 Le caractère réglementé du secteur (santé) et la présence d'une gouvernance structurée facilitent la couverture des compétences de conformité, de gouvernance et d'éthique attendues.
 
 ### 1.2 Problématique métier
@@ -48,17 +50,23 @@ Les contraintes imposent de réels arbitrages :
 
 ## 2. Environnement technique existant
 
-VigiRoute exploite un système d'information classique (bases opérationnelles, centre de réception des signalements 15/18/112) sur lequel GRAVIA vient se greffer comme brique d'aide à la décision.
+VigiRoute exploite un système d'information sur lequel GRAVIA vient se greffer comme brique d'aide à la décision :
+
+- un **centre de régulation** recevant les appels d'urgence (15 / 18 / 112) et les signalements d'accidents ;
+- un **bus de messages** (type Kafka) diffusant les signalements en temps réel ;
+- un **data lake** sur stockage objet (type S3) pour les données brutes et l'historique ;
+- un **entrepôt analytique PostgreSQL** alimentant l'entraînement et les analyses ;
+- des **connecteurs** vers des sources externes (météo, trafic).
 
 Les données mobilisées couvrent les **trois dimensions des 3V**, de manière non triviale :
 
-| Dimension | Réalité du projet |
-|---|---|
-| **Volume** | Base **BAAC** 2005→2024 : plusieurs millions de lignes `usagers` (~50–60 000 accidents/an) |
-| **Vélocité** | Historique en **batch** (millésimes annuels) **+ flux temps réel** des signalements et du trafic (Bison Futé / Waze) |
-| **Variété** | **Structuré** (BAAC : 4 tables), **semi-structuré** (météo Open-Meteo, géolocalisation BAN/OSM), **flux** événementiel temps réel |
+| Dimension | Réalité du projet | Ordre de grandeur |
+|---|---|---|
+| **Volume** | Historique **BAAC** 2005→2024 + données enrichies (météo, géo) | Plusieurs millions de lignes `usagers` (~50–60 000 accidents/an sur ~20 ans) |
+| **Vélocité** | Flux temps réel des signalements + flux trafic, en plus du batch annuel | Plusieurs **milliers de signalements/jour** avec forts pics horaires ; flux trafic rafraîchi toutes les quelques minutes sur des milliers de points |
+| **Variété** | Structuré + semi-structuré + flux événementiel | BAAC (4 tables relationnelles), météo/géo (semi-structuré), signalements (flux JSON) |
 
-Les flux combinent donc une **ingestion batch** (chargement des millésimes, réentraînement) et une **ingestion temps réel** (signalements à scorer).
+Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
 
 ---
 
@@ -89,6 +97,8 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **AIPD.** Le risque résiduel est jugé **acceptable** sous réserve de la mise en œuvre du plan d'action (pseudonymisation, agrégation géographique anti-ré-identification, chiffrement, tests d'équité, explicabilité, human-in-the-loop).
 
+> **Justification du choix.** La **pseudonymisation dès la couche Silver** (plutôt qu'un simple contrôle d'accès) a été retenue pour limiter l'impact d'une éventuelle violation : les jeux d'entraînement ne contiennent aucune donnée directement identifiante. L'**agrégation géographique** a été préférée à la conservation des coordonnées exactes pour neutraliser le risque de ré-identification, sans perte significative de pouvoir prédictif — le contexte routier (type de route, agglomération) suffit au modèle.
+
 *Livrables : [plan de gouvernance](Gouvernance_GRAVIA.md), [AIPD](AIPD_GRAVIA.md).*
 
 ---
@@ -108,6 +118,8 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 **Sécurité et surveillance.** Chiffrement au repos et en transit, pseudonymisation dès la Silver, gestion des accès au moindre privilège ; surveillance de l'infrastructure via **Prometheus + Grafana** (latence, erreurs, disponibilité) avec alertes.
 
 **Documentation accessible.** Architecture documentée avec diagrammes (flux, ER, étoile) accompagnés de descriptions textuelles, en formats ouverts.
+
+> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmentait. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée.
 
 *Livrable : [document d'architecture](Architecture_GRAVIA.md).*
 
@@ -140,6 +152,8 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 **Monitoring en production.** Suivi des performances et de la latence, alertes proactives, vérification du respect des spécifications.
 
 **Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (équité selon âge/sexe), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
+
+> **Justification du choix.** **LightGBM** a été préféré à un réseau de neurones profond : sur des données **tabulaires** de ce volume, le gradient boosting est plus performant, plus rapide à entraîner et surtout plus **explicable** (compatibilité naturelle avec SHAP) — or l'explicabilité est ici une exigence réglementaire. Un modèle profond n'apporterait pas de gain de performance et complexifierait la justification éthique.
 
 > **Deux dépôts distincts** sont prévus, conformément à l'attendu : un dépôt pour la **solution IA** (entraînement, modèle, API) et un dépôt pour le **pipeline CI/CD et l'infrastructure** (IaC, déploiement, orchestration).
 
