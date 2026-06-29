@@ -124,6 +124,7 @@ La base BAAC code la gravité par usager en 4 niveaux : *indemne*, *blessé lég
 | EF-1 | Le système ingère les millésimes BAAC et les enrichit (météo, géo, trafic). |
 | EF-2 | Le système nettoie, pseudonymise et structure les données (Bronze → Silver → Gold). |
 | EF-3 | Le modèle prédit la gravité (`grave` / `non grave`) à partir des caractéristiques d'un accident. |
+| EF-3b | **Plusieurs modèles sont comparés (benchmark)** — régression logistique (baseline), Random Forest, gradient boosting (LightGBM/XGBoost) — et le **modèle final est retenu en fonction des résultats** (métriques du §11), avec suivi des expériences dans MLflow. |
 | EF-4 | Le modèle renvoie un **score de confiance** et une **explication** (contributions des variables, SHAP). |
 | EF-5 | Une **API REST** expose la prédiction en temps réel (`POST /v1/predict-severity`). |
 | EF-6 | Le système réentraîne le modèle sur nouveau millésime ou sur détection de dérive. |

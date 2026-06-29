@@ -143,7 +143,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 7. Bloc 4 — Déploiement de la solution IA
 
-**Algorithme adapté.** Un modèle **LightGBM** (avec une régression logistique en baseline) réalise la **classification binaire** `grave` / `non grave`. Ce choix est justifié par l'efficacité du gradient boosting sur des données **tabulaires déséquilibrées** (pondération des classes), sa rapidité et son explicabilité ; un modèle profond serait inadapté à ce type et ce volume de données. Métriques retenues : **recall de la classe `grave` ≥ 0,80** (ne pas manquer un cas grave est prioritaire), F1 macro, PR-AUC.
+**Algorithme — démarche de benchmark.** Plusieurs modèles seront **comparés** sur les mêmes métriques : régression logistique (*baseline*), Random Forest, et des modèles de *gradient boosting* (LightGBM, XGBoost), avec suivi des expériences dans **MLflow**. Le **modèle final sera retenu en fonction des résultats** — priorité au **recall de la classe `grave` ≥ 0,80** (ne pas manquer un cas grave), puis F1 macro et PR-AUC, sous contrainte d'explicabilité (SHAP). Le gradient boosting est anticipé comme favori sur ces données **tabulaires déséquilibrées**, mais le choix ne sera arrêté qu'**après le benchmark**.
 
 **Intégration.** Exposition via une **API FastAPI** (`/v1/predict-severity`) renvoyant un score, une classe et une **explication SHAP**, avec gestion des erreurs et sécurisation des accès, compatible avec l'infrastructure existante.
 
@@ -155,7 +155,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (équité selon âge/sexe), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
 
-> **Justification du choix.** **LightGBM** a été préféré à un réseau de neurones profond : sur des données **tabulaires** de ce volume, le gradient boosting est plus performant, plus rapide à entraîner et surtout plus **explicable** (compatibilité naturelle avec SHAP) — or l'explicabilité est ici une exigence réglementaire. Un modèle profond n'apporterait pas de gain de performance et complexifierait la justification éthique.
+> **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt qu'arrêté a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
 
 > **Deux dépôts distincts** sont prévus, conformément à l'attendu : un dépôt pour la **solution IA** (entraînement, modèle, API) et un dépôt pour le **pipeline CI/CD et l'infrastructure** (IaC, déploiement, orchestration).
 

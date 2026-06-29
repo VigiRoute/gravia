@@ -9,7 +9,7 @@ GRAVIA est un système MLOps d'**aide à la décision pour la priorisation des s
 - **Cible :** `grave` = au moins une victime hospitalisée ou tuée (agrégée au niveau accident)
 - **Architecture :** Medallion Bronze / Silver / Gold + MLOps complet
 
-> ⚠️ **Pas de GPU dans ce projet.** La tâche est une classification tabulaire (LightGBM) — l'entraînement tourne en CPU. Ne pas générer de code CUDA/ROCm.
+> ⚠️ **Pas de GPU dans ce projet.** La tâche est une classification tabulaire (benchmark de modèles — gradient boosting anticipé favori) — l'entraînement tourne en CPU. Ne pas générer de code CUDA/ROCm.
 
 ---
 
@@ -80,7 +80,7 @@ gravia/
 ├── src/gravia/              # code source du package
 ├── ml/
 │   ├── features/            # feature engineering (anti-leakage)
-│   ├── training/            # entraînement LightGBM
+│   ├── training/            # entraînement & benchmark de modèles
 │   ├── serving/             # FastAPI /v1/predict-severity
 │   └── monitoring/          # Evidently (dérive)
 ├── pipelines/airflow/dags/  # DAGs du pipeline de données
