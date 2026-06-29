@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.Python
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Secrets / config locale
+.env
+*.local
+
+# Données (ne pas committer les datasets)
+data/bronze/
+data/silver/
+data/gold/
+data/raw/
+*.parquet
+*.csv
+!data/expectations/**/*.csv
+
+# MLflow / modèles
+mlruns/
+mlartifacts/
+*.pkl
+*.joblib
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Tests / couverture
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
