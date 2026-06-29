@@ -1,7 +1,7 @@
 # PROJET DE CERTIFICATION — ARCHITECTE EN IA (MASTÈRE 2)
 ## Document de présentation de projet
 
-**Nom et prénom :** ……………………………………………………
+**Nom et prénom :** Jack Lecomte
 **Titre du projet :** GRAVIA — Aide à la décision pour la priorisation des secours routiers
 **Date :** 29 juin 2026
 
