@@ -62,28 +62,46 @@ Toujours préciser l'environnement (dev/prod) avant de générer du code ou de l
 
 ---
 
-## Structure du dépôt
+## Organisation en deux dépôts
+
+Le projet est réparti sur l'organisation GitHub **VigiRoute**, en deux dépôts distincts (exigence de certification) :
+
+| Dépôt | Rôle | Contenu |
+|---|---|---|
+| **[VigiRoute/gravia](https://github.com/VigiRoute/gravia)** *(ce dépôt)* | Solution IA | Code de la solution, pipelines de données, docs, stack dev |
+| **[VigiRoute/gravia-mlops](https://github.com/VigiRoute/gravia-mlops)** | CI/CD + déploiement | IaC (Terraform), manifests Kubernetes, workflows de déploiement |
+
+Règle : `gravia` **construit** la solution, `gravia-mlops` la **déploie**.
+
+## Structure du dépôt — gravia (ce dépôt)
 
 ```
 gravia/
-├── infra/
-│   ├── docker-compose.yml   # stack dev
-│   └── terraform/           # IaC (LocalStack → AWS)
-├── pipelines/
-│   └── airflow/dags/        # DAGs d'orchestration
-├── data/
-│   ├── expectations/        # Great Expectations
-│   └── models/              # DDL Gold (schéma étoile)
+├── src/gravia/              # code source du package
 ├── ml/
 │   ├── features/            # feature engineering (anti-leakage)
 │   ├── training/            # entraînement LightGBM
 │   ├── serving/             # FastAPI /v1/predict-severity
 │   └── monitoring/          # Evidently (dérive)
-├── src/gravia/              # code source du package
+├── pipelines/airflow/dags/  # DAGs du pipeline de données
+├── data/
+│   ├── expectations/        # Great Expectations
+│   └── models/              # DDL Gold (schéma étoile)
+├── infra/
+│   └── docker-compose.yml   # stack DEV locale (MinIO, PostgreSQL, Airflow…)
 ├── tests/                   # unit + integration
 ├── notebooks/               # exploration
-├── docs/                    # CDC, architecture, gouvernance, AIPD, ADR
-└── .github/workflows/       # CI/CD
+├── docs/                    # CDC, architecture, gouvernance, AIPD, présentation, ADR
+└── .github/workflows/       # CI de la solution (tests, lint, build)
+```
+
+## Structure du dépôt — gravia-mlops
+
+```
+gravia-mlops/
+├── terraform/               # IaC prod (LocalStack → AWS) : storage, network, compute, mlops
+├── k8s/                     # manifests Kubernetes (EKS cible)
+└── .github/workflows/       # CD : déploiement infra + solution, réentraînement planifié
 ```
 
 ---

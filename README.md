@@ -15,6 +15,13 @@ Projet MLOps réalisé dans le cadre du titre RNCP **Architecte en Intelligence 
 | **Stack dev** | MinIO · PostgreSQL · Polars/DuckDB · Airflow · MLflow · FastAPI · Docker |
 | **Stack prod (cible)** | AWS S3 · RDS · EKS · MSK · Terraform (via LocalStack en local) |
 
+## Organisation du code
+
+Projet réparti sur l'organisation **VigiRoute**, en deux dépôts (exigence de certification) :
+
+- **[VigiRoute/gravia](https://github.com/VigiRoute/gravia)** *(ce dépôt)* — la solution IA : code, pipelines de données, docs, stack dev.
+- **[VigiRoute/gravia-mlops](https://github.com/VigiRoute/gravia-mlops)** — CI/CD et déploiement : IaC Terraform, Kubernetes, workflows de déploiement.
+
 ## Documentation
 
 - 📋 [Cahier des charges](docs/CDC_GRAVIA.md)

@@ -253,6 +253,17 @@ flowchart TB
     AWS --> K8S[Kubernetes EKS\nAirflow + FastAPI]
 ```
 
+### 6.3 Organisation en deux dépôts
+
+Le code est réparti sur l'organisation GitHub **VigiRoute**, conformément à l'exigence de certification (deux dépôts distincts) :
+
+| Dépôt | Rôle | Contenu |
+|---|---|---|
+| **[gravia](https://github.com/VigiRoute/gravia)** | Solution IA | Code, pipelines de données, stack dev (docker-compose), docs |
+| **[gravia-mlops](https://github.com/VigiRoute/gravia-mlops)** | CI/CD + déploiement | Terraform (IaC), manifests Kubernetes, workflows de déploiement |
+
+Le Terraform et les workflows de déploiement décrits ci-dessus résident dans **gravia-mlops** ; `gravia` héberge la solution et le `docker-compose` de développement.
+
 ---
 
 ## 7. Sécurité et conformité (lien Bloc 1)
