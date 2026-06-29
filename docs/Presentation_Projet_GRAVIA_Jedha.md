@@ -68,7 +68,7 @@ Les données mobilisées couvrent les **trois dimensions des 3V**, de manière n
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
 
-> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relit le BAAC et l'injecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
+> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relie le BAAC et l'injecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
 
 > *Les chiffres d'accidentalité (accidents corporels, tués, blessés) proviennent de l'ONISR (voir Sources). Les débits de signalements temps réel sont une **estimation du scénario** VigiRoute, dérivée de la volumétrie annuelle d'accidents.*
 
