@@ -105,6 +105,7 @@ La base BAAC code la gravité par usager en 4 niveaux : *indemne*, *blessé lég
 | Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel |
 | BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel |
 | Bison Futé / Waze for Cities | État du trafic | Flux temps réel | Streaming |
+| **Signalements** (à scorer) | Accidents entrants à classer à la volée | Flux d'événements | **Simulé par rejeu du BAAC** (voir §6.4) |
 
 ### 6.2 Volumétrie
 - Ordre de grandeur : plusieurs millions de lignes `usagers` sur ~20 ans (~50–60k accidents/an).
@@ -114,6 +115,14 @@ La base BAAC code la gravité par usager en 4 niveaux : *indemne*, *blessé lég
 - **Données sensibles (art. 9 RGPD)** : la **gravité = donnée de santé**.
 - **Risque principal** : ré-identification par croisement `lat/long` + `date` + `commune`.
 - **Mesures** : pseudonymisation et agrégation géographique dès la couche Silver, minimisation dès l'ingestion, **AIPD obligatoire** (données de santé + scoring + grande échelle).
+
+### 6.4 Origine du flux temps réel
+
+Le BAAC est une source **batch** (publiée ~2 fois/an) : ce n'est **pas** une source temps réel. La source opérationnelle réelle des signalements d'accidents (régulation des secours 15 / 18 / 112) **n'est pas accessible en open data**.
+
+En conséquence, le flux temps réel est alimenté par un **simulateur de rejeu** (*replay*) : un producteur lit les enregistrements BAAC et les réinjecte dans le bus de messages (Redpanda/Kafka) avec un horodatage, comme s'ils arrivaient en direct. Seuls les **enrichissements météo** (API Open-Meteo) — et, partiellement, le trafic — proviennent de **véritables flux temps réel**.
+
+> **Choix d'architecture assumé.** L'architecture temps réel (bus de messages, enrichissement, inférence) est **réelle et fonctionnelle** ; seule la *source* des signalements est simulée. En production, le simulateur serait remplacé par le **feed réel de l'opérateur** (Kafka managé).
 
 ---
 
@@ -200,7 +209,7 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 1. ✅ **Cible** : binaire `grave`/`non grave` — **validé**. Multi-classes 4 niveaux = extension possible.
 2. ✅ **Périmètre géographique** : **France entière** — validé (volumétrie maîtrisable ; repli sur un sous-ensemble seulement si contrainte technique avérée).
 3. ✅ **Seuils de performance** : cibles provisoires assumées, à recalibrer après baseline — validé.
-4. **Scénario temps réel** : ingestion streaming simulée par rejeu BAAC + flux trafic/météo réels — à confirmer comme choix d'architecture assumé (Bloc 3).
+4. ✅ **Scénario temps réel** : flux alimenté par un **simulateur de rejeu du BAAC** (+ météo/trafic réels) — choix d'architecture **assumé et documenté** (§6.4).
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
 
 ---

@@ -96,6 +96,17 @@ flowchart LR
     O -.pilote.-> M
 ```
 
+### 2.3 Origine des flux et du temps réel
+
+| Flux | Origine | Réel / simulé |
+|---|---|---|
+| Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | Réel |
+| **Signalements temps réel** | **Simulateur de rejeu** : un producteur relit le BAAC et l'injecte dans Redpanda/Kafka, horodaté comme un flux live | **Simulé** |
+| Météo | API **Open-Meteo** | Réel (temps réel) |
+| Trafic | Bison Futé / Waze for Cities | Partiel |
+
+Le BAAC étant une source **batch** (publiée ~2 fois/an) et la source opérationnelle réelle (régulation des secours) n'étant **pas en open data**, le flux de signalements est **simulé par rejeu**. L'architecture temps réel (bus de messages, enrichissement, inférence) est, elle, **réelle et fonctionnelle** ; en production, le simulateur serait remplacé par le feed réel de l'opérateur.
+
 ---
 
 ## 3. Choix technologiques et justifications
@@ -113,7 +124,7 @@ C'est le cœur de la défense (le jury note la **justification** des choix).
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Compatible Kafka, léger, sans Zookeeper | Kafka complet en dev : lourd |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod), alimenté par un **simulateur de rejeu BAAC** | Compatible Kafka, léger ; rejeu faute de source live (voir §2.3) | Kafka complet en dev : lourd |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | IaC réelle gratuite via LocalStack, cible AWS documentée | — |
 
