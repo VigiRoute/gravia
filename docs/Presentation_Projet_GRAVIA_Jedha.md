@@ -15,13 +15,13 @@ GRAVIA s'inscrit dans le secteur de la **sécurité routière et des secours d'u
 
 L'organisation porteuse, **VigiRoute**, est un **opérateur d'intérêt public** (structure de type partenariat entre l'Observatoire national interministériel de la sécurité routière et les services de secours). De taille moyenne (quelques centaines d'agents), elle dispose d'une direction des systèmes d'information, d'un délégué à la protection des données (DPO) et d'un responsable de la sécurité (RSSI). Sa mission : améliorer l'efficacité de la réponse aux accidents corporels de la circulation.
 
-En France, la route fait **environ 3 400 morts et 235 000 blessés par an, dont près de 16 000 blessés graves** (ONISR, bilan définitif 2024), pour de l'ordre de **50 000 accidents corporels** enregistrés chaque année. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
+En France, la route fait **environ 3 400 morts et 235 000 blessés par an, dont près de 16 000 blessés graves** (ONISR, bilan définitif 2024), pour l'ordre de **50 000 accidents corporels** enregistrés chaque année. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
 
 Le caractère réglementé du secteur (santé) et la présence d'une gouvernance structurée facilitent la couverture des compétences de conformité, de gouvernance et d'éthique attendues.
 
 ### 1.2 Problématique métier
 
-Lorsqu'un accident est signalé, l'opérateur de régulation des secours doit décider **rapidement** quels moyens engager (véhicule simple, équipe médicalisée, hélicoptère), à partir d'informations **incomplètes**. Une mauvaise estimation de la gravité retarde la prise en charge des cas les plus critiques.
+Lorsqu'un accident est signalé, l'opérateur de régulation des secours doit décider **rapidement** quels moyens engagés (véhicule simple, équipe médicalisée, hélicoptère), à partir d'informations **incomplètes**. Une mauvaise estimation de la gravité retarde la prise en charge des cas les plus critiques.
 
 > **Problème à résoudre :** estimer, dès le signalement, la **probabilité qu'un accident soit grave** (au moins une victime hospitalisée ou tuée), afin d'aider l'opérateur à prioriser et dimensionner les moyens.
 
@@ -67,6 +67,8 @@ Les données mobilisées couvrent les **trois dimensions des 3V**, de manière n
 | **Variété** | Structuré + semi-structuré + flux événementiel | BAAC (4 tables relationnelles), météo/géo (semi-structuré), signalements (flux JSON) |
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
+
+> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relit le BAAC et l'injecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
 
 > *Les chiffres d'accidentalité (accidents corporels, tués, blessés) proviennent de l'ONISR (voir Sources). Les débits de signalements temps réel sont une **estimation du scénario** VigiRoute, dérivée de la volumétrie annuelle d'accidents.*
 
@@ -121,7 +123,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Documentation accessible.** Architecture documentée avec diagrammes (flux, ER, étoile) accompagnés de descriptions textuelles, en formats ouverts.
 
-> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmentait. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée.
+> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmente. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée.
 
 *Livrable : [document d'architecture](Architecture_GRAVIA.md).*
 
@@ -129,7 +131,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 6. Bloc 3 — Pipelines de données pour l'IA
 
-**Conception batch + temps réel.** Le pipeline combine un traitement **batch** (chargement des millésimes BAAC, réentraînement) et une **ingestion temps réel** des signalements via **Redpanda** (compatible Kafka), adaptée aux contraintes de vélocité.
+**Conception batch + temps réel.** Le pipeline combine un traitement **batch** (chargement des millésimes BAAC, réentraînement) et une **ingestion temps réel** des signalements via **Redpanda** (compatible Kafka), adaptée aux contraintes de vélocité. Faute de source live, ce flux est alimenté par un **simulateur de rejeu du BAAC** (voir section 2).
 
 **ETL/ELT entre sources hétérogènes.** Le flux **Bronze → Silver → Gold** intègre des sources hétérogènes (BAAC, météo, géolocalisation, trafic) : nettoyage, typage, **pseudonymisation**, jointures d'enrichissement, encodage, puis construction du schéma en étoile et du label `is_grave`.
 
@@ -155,7 +157,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (équité selon âge/sexe), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
 
-> **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt qu'arrêté a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
+> **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt qu'arrêter a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
 
 > **Deux dépôts distincts** sont prévus, conformément à l'attendu : un dépôt pour la **solution IA** (entraînement, modèle, API) et un dépôt pour le **pipeline CI/CD et l'infrastructure** (IaC, déploiement, orchestration).
 
