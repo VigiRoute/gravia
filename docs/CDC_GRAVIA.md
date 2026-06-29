@@ -50,6 +50,17 @@ La base BAAC code la gravité par usager en 4 niveaux : *indemne*, *blessé lég
 - `grave` = au moins une victime *hospitalisée* ou *tuée* ;
 - `non grave` = sinon (indemnes / blessés légers uniquement).
 
+**Granularité : une prédiction par accident, pas par personne.**
+Le modèle produit **une seule prédiction par accident** (la situation globale), et **non** un pronostic individuel pour chaque victime. Les données par usager servent uniquement à *construire l'étiquette*, jamais à prédire personne par personne.
+
+| Étape | Grain |
+|---|---|
+| Construction du label (entraînement) | par **usager** (`grav` 1–4), agrégé en « au moins un grave » |
+| Entrée du modèle (features) | par **accident** (contexte : véhicules, route, météo…) |
+| Prédiction (sortie) | par **accident** (`grave` / `non grave`) |
+
+Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l'accident dans son ensemble) et de la réalité du signalement (les individus ne sont pas connus en détail à cet instant). Une prédiction au grain *usager* serait un autre problème, plus complexe et sans valeur ajoutée pour le triage — éventuelle piste d'extension, hors périmètre.
+
 **Justification du choix binaire** : pour un usage de triage, la décision opérationnelle est binaire (« envoyer des moyens lourds ou non ») ; le regroupement binaire stabilise aussi l'apprentissage face au fort déséquilibre des classes et aux variations historiques de définition du « blessé hospitalisé ».
 
 **Pourquoi ne pas retenir le multi-classes (4 niveaux) ?**
