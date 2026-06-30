@@ -178,6 +178,7 @@ En conséquence, le flux temps réel est alimenté par un **simulateur de rejeu*
 | EC-6 | **IA éthique** : tests d'équité (parité selon âge/sexe, *equalized odds*), documentation et atténuation des biais. |
 | EC-7 | **Human-in-the-loop** : le modèle assiste l'opérateur, ne prend pas de décision autonome. |
 | EC-8 | Explicabilité fournie pour chaque prédiction (SHAP). |
+| EC-9 | **HDS (Hébergement de Données de Santé)** : non requis sur le périmètre actuel (données ouvertes/pseudonymisées) ; un **hébergeur certifié HDS** (art. L1111-8 CSP) serait requis en production traitant des données réelles de victimes. |
 
 ---
 

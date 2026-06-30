@@ -64,6 +64,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 | **Recommandations ANSSI** | Mesures de sécurité techniques (chiffrement, cloisonnement) |
 | **RGAA** | Accessibilité des interfaces et documents |
 | **Lignes directrices IA (CNIL / AI Act)** | IA éthique, explicabilité, human-in-the-loop, tests de biais |
+| **HDS (Hébergement de Données de Santé)** | Non requis sur le périmètre actuel (données ouvertes/pseudonymisées) ; un hébergeur certifié HDS (art. L1111-8 CSP) serait requis en production traitant les données réelles des victimes |
 
 **Base légale du traitement** : mission d'intérêt public (art. 6.1.e RGPD) ; pour les données de santé, intérêt public dans le domaine de la santé / sauvegarde des intérêts vitaux (art. 9.2.i / 9.2.c).
 

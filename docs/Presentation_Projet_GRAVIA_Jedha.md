@@ -84,6 +84,7 @@ Le système combine ainsi une **ingestion batch** (chargement des millésimes, r
 | **Recommandations ANSSI** | Mesures techniques de sécurisation (cloisonnement, secrets). |
 | **RGAA** | Accessibilité des interfaces et des documents (personnes en situation de handicap). |
 | **IA éthique (CNIL / AI Act)** | Explicabilité des prédictions, non-discrimination, respect de la vie privée. |
+| **HDS (Hébergement de Données de Santé)** | Non applicable au périmètre actuel (données ouvertes et pseudonymisées). En **production** traitant des données réelles de victimes, l'hébergement imposerait un **hébergeur certifié HDS** (art. L1111-8 du Code de la santé publique) — anticipé comme exigence de passage à l'échelle. |
 
 ---
 
