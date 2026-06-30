@@ -66,7 +66,7 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 **Pourquoi ne pas retenir le multi-classes (4 niveaux) ?**
 - **Adéquation au besoin** : la décision métier visée est binaire. Une granularité à 4 niveaux dépasserait le besoin opérationnel (sur-ingénierie au regard de l'usage de triage).
 - **Déséquilibre** : la classe `tué` est très minoritaire (quelques %), ce qui dégrade fortement l'apprentissage et la fiabilité des prédictions sur cette classe — au détriment de la robustesse globale.
-- **Performance défendable** : une cible binaire permet d'atteindre des métriques plus stables et plus crédibles devant le jury, alors qu'un 4-classes ferait mécaniquement chuter le F1 macro.
+- **Performance défendable** : une cible binaire permet d'atteindre des métriques plus stables et plus crédibles, alors qu'un 4-classes ferait mécaniquement chuter le F1 macro.
 - **Qualité des labels** : la définition du « blessé hospitalisé » a évolué dans BAAC selon les millésimes ; la regrouper avec `tué` dans une cible `grave` réduit ce bruit d'étiquetage.
 - **Simplicité d'agrégation** : « au moins une victime grave » est une règle d'agrégation au niveau accident claire et non ambiguë, contrairement au choix d'une classe représentative en 4 niveaux.
 

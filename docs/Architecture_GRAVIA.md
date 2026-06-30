@@ -8,7 +8,7 @@
 
 ---
 
-## 1. Besoins et contraintes architecturaux (C2.1)
+## 1. Besoins et contraintes architecturaux
 
 | Dimension | Besoin / contrainte |
 |---|---|
@@ -17,7 +17,7 @@
 | **Vélocité** | Batch (millésimes annuels) + ingestion temps réel des signalements (cas d'usage secours) |
 | **Latence de prédiction** | API temps réel p95 < 300 ms |
 | **Sécurité / conformité** | Données personnelles + **santé** (gravité) → chiffrement, accès restreint, RGPD, AIPD |
-| **Coût** | Projet jury → priorité au **gratuit / open source** ; pas d'accès au free tier AWS |
+| **Coût** | Priorité au **gratuit / open source** ; pas d'accès à un cloud payant |
 | **Évolutivité** | Architecture capable de monter en charge (cible cloud + Kubernetes) |
 
 **Principe directeur** : dimensionner juste. Le volume modeste **interdit la sur-ingénierie** (pas de Spark/cluster en dev) mais l'architecture **cible** prévoit la montée en charge.
@@ -114,23 +114,23 @@ Le **flux haute fréquence** du système est la **donnée de trafic capteur** (r
 
 ## 3. Choix technologiques et justifications
 
-C'est le cœur de la défense (le jury note la **justification** des choix).
+Chaque brique est justifiée au regard des contraintes du projet.
 
-**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence** — les données de trafic capteur (milliers de mesures/min) ; (3) **Kubernetes** dépasse la charge actuelle et est retenu comme **cible de production** et pour couvrir la compétence cluster (C2.6) — choix de démonstration assumé.
+**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence**, les données de trafic capteur (milliers de mesures/min) ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
 | **Moteur de traitement** | **Polars / DuckDB** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
 | **Stockage Bronze/Silver** | Parquet sur MinIO/S3 | Colonnaire, compressé, standard lakehouse, narratif Medallion | Tout-relationnel : perd le narratif Bronze/Silver |
-| **Stockage Gold** | **PostgreSQL — schéma en étoile** | Modélisation dimensionnelle attendue (C2.3), requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
+| **Stockage Gold** | **PostgreSQL — schéma en étoile** | Modélisation dimensionnelle, requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
-| **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Couche de scaling/résilience ; couvre la compétence **cluster (C2.6)** ; **choix de démonstration assumé**, pas dicté par la charge | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple mais ne démontre pas les clusters) |
+| **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Scaling horizontal et **haute disponibilité** du service en production ; orchestration des conteneurs | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple, moins de contrôle sur l'orchestration) |
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
 | **Cache** | Redis (dev) / ElastiCache (prod) | Cache des **enrichissements temps réel** (trafic/météo par zone, rafraîchis périodiquement) : évite un appel externe à chaque prédiction et aide à tenir la **latence p95 < 300 ms** | Aucun cache : appels externes répétés, latence dégradée |
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) ; couvre C3.1 | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | IaC réelle gratuite via LocalStack, cible AWS documentée | — |
 
@@ -138,11 +138,11 @@ C'est le cœur de la défense (le jury note la **justification** des choix).
 Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
 
 ### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
-Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** est justifié par un **flux haute fréquence réel** (trafic capteur, milliers de mesures/min) — ce n'est pas de la sur-ingénierie ; seul **Kubernetes** dépasse la charge actuelle et est retenu comme **cible de production** et **preuve de compétence cluster (C2.6)**.
+Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** est justifié par un **flux haute fréquence réel** (trafic capteur, milliers de mesures/min) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
 
 ---
 
-## 4. Modélisation des données (C2.3 / C2.4)
+## 4. Modélisation des données
 
 ### 4.1 Modèle conceptuel (source BAAC)
 
@@ -253,7 +253,7 @@ erDiagram
 
 ---
 
-## 6. Déploiement et IaC (C2.5 / C2.6)
+## 6. Déploiement et IaC
 
 ### 6.1 Dev
 - **Docker Compose** : MinIO, PostgreSQL, Airflow, MLflow, Redis, Redpanda, FastAPI, Prometheus, Grafana.
@@ -261,7 +261,7 @@ erDiagram
 ### 6.2 Prod (cible) déployée via Terraform
 - **LocalStack** : `terraform apply` réel et gratuit émulant AWS (S3, IAM, etc.) → IaC + vidéo de prod.
 - **Architecture cible AWS** documentée : S3, RDS PostgreSQL, **EKS (Kubernetes)** pour Airflow + serving, MSK (Kafka), ElastiCache, ECR.
-- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs (C2.6). Démonstration locale possible via **k3s/kind**.
+- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale possible via **k3s/kind**.
 
 ```mermaid
 flowchart TB
@@ -311,7 +311,7 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ---
 
-## 9. Surveillance de l'infrastructure (C2.7)
+## 9. Surveillance de l'infrastructure
 
 - **Prometheus** : métriques système et applicatives (CPU, mémoire, latence API).
 - **Grafana** : tableaux de bord + alertes (latence p95, taux d'erreur, disponibilité).
@@ -320,7 +320,7 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ---
 
-## 10. Accessibilité de la documentation (C2.8)
+## 10. Accessibilité de la documentation
 
 - Diagrammes accompagnés de descriptions textuelles (lecture sans visuel possible).
 - Structure de titres hiérarchisée, langage vulgarisé.
@@ -328,12 +328,12 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ---
 
-## 11. Décisions d'architecture (synthèse à défendre)
+## 11. Synthèse des décisions d'architecture
 
 1. **Polars/DuckDB plutôt que Spark** : volume en mémoire → éviter la sur-ingénierie ; Spark gardé comme voie de montée en charge.
 2. **Hybride lac + PostgreSQL** : Medallion pour le narratif + schéma en étoile relationnel pour la modélisation attendue.
 3. **LocalStack pour Terraform** : IaC et déploiement « production » réels et gratuits, sans accès AWS payant.
-4. **Kubernetes en cible, pas en dev** : couvre la compétence cluster (C2.6) sans alourdir le développement.
+4. **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
 5. **Anti-leakage strict** : features limitées aux informations connues au signalement.
 
 ---
@@ -344,3 +344,18 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 - Référentiel RNCP — Bloc 2
 - LocalStack — https://www.localstack.cloud/
 - Polars — https://pola.rs/ · DuckDB — https://duckdb.org/
+
+---
+
+## Annexe — Correspondance avec le référentiel (Bloc 2)
+
+| Compétence | Couverture dans ce document |
+|---|---|
+| C2.1 — Évaluation des besoins et contraintes | §1 |
+| C2.2 — Cahier des charges d'architecture | Ce document (+ CDC) |
+| C2.3 — Modèles logiques et physiques | §4 (MCD, schéma en étoile) |
+| C2.4 — Structures de bases de données | §4, §5 |
+| C2.5 — Serveurs cloud / on-premise | §2, §6 |
+| C2.6 — Clusters de calcul et scaling | §6 (Kubernetes / EKS) |
+| C2.7 — Surveillance de l'infrastructure | §9 |
+| C2.8 — Documentation accessible | §10 |
