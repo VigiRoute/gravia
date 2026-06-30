@@ -224,7 +224,7 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 3. ✅ **Seuils de performance** : cibles provisoires assumées, à recalibrer après baseline — validé.
 4. ✅ **Scénario temps réel** : flux alimenté par un **simulateur de rejeu du BAAC** (+ météo/trafic réels) — choix d'architecture **assumé et documenté** (§6.4).
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
-6. **Enrichissements bulletins / trafic** : leur apport prédictif et leur modélisation (feature agrégée, table dédiée, ou abandon) seront tranchés **après l'EDA et un premier baseline**.
+6. **Enrichissements — trafic prioritaire, bulletins exploratoires** : le **trafic** est le pari le plus sûr (archives historiques exploitables pour l'entraînement, vrai flux temps réel) ; les **bulletins** sont plus fragiles (historique incertain, surtout utiles à la variété). Apport prédictif et modélisation tranchés après l'EDA ; bulletins **abandonnés s'ils ne sont pas exploitables**.
 
 ---
 
