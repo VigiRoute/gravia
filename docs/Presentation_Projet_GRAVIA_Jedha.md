@@ -13,15 +13,15 @@
 
 GRAVIA s'inscrit dans le secteur de la **sécurité routière et des secours d'urgence**, un domaine **réglementé** car il manipule des **données de santé** (la gravité des blessures) relatives à des personnes vulnérables (victimes d'accident).
 
-L'organisation porteuse, **VigiRoute**, est un **opérateur d'intérêt public** (structure de type partenariat entre l'Observatoire national interministériel de la sécurité routière et les services de secours). De taille moyenne (quelques centaines d'agents), elle dispose d'une direction des systèmes d'information, d'un délégué à la protection des données (DPO) et d'un responsable de la sécurité (RSSI). Sa mission : améliorer l'efficacité de la réponse aux accidents corporels de la circulation.
+L'organisation porteuse, **VigiRoute**, est un **opérateur d'intérêt public** (issue d'un partenariat entre l'Observatoire national interministériel de la sécurité routière — **ONISR** — et les services de secours). De taille moyenne (quelques centaines d'agents), elle dispose d'une direction des systèmes d'information, d'un délégué à la protection des données (DPO) et d'un responsable de la sécurité (RSSI). Sa mission : améliorer l'efficacité de la réponse aux accidents corporels de la circulation.
 
-En France, la route fait **environ 3 400 morts et 235 000 blessés par an, dont près de 16 000 blessés graves** (ONISR, bilan définitif 2024), pour l'ordre de **50 000 accidents corporels** enregistrés chaque année. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
+En France, la route fait **environ 3 400 morts et 235 000 blessés par an, dont près de 16 000 blessés graves** (ONISR, bilan définitif 2024), soit environ **50 000 accidents corporels** enregistrés chaque année. Quelques minutes gagnées sur l'engagement des moyens adaptés peuvent changer le pronostic vital : l'enjeu se mesure en **vies humaines** et en **délai d'intervention**, ce qui justifie l'investissement dans une aide à la décision prédictive.
 
-Le caractère réglementé du secteur (santé) et la présence d'une gouvernance structurée facilitent la couverture des compétences de conformité, de gouvernance et d'éthique attendues.
+Ce contexte — secteur réglementé, données de santé — place la **conformité, la gouvernance et l'éthique au cœur du projet**.
 
 ### 1.2 Problématique métier
 
-Lorsqu'un accident est signalé, l'opérateur de régulation des secours doit décider **rapidement** quels moyens engagés (véhicule simple, équipe médicalisée, hélicoptère), à partir d'informations **incomplètes**. Une mauvaise estimation de la gravité retarde la prise en charge des cas les plus critiques.
+Lorsqu'un accident est signalé, l'opérateur de régulation des secours doit décider **rapidement**, à partir d'informations **incomplètes**, quels moyens engager (véhicule simple, équipe médicalisée, hélicoptère). Une mauvaise estimation de la gravité retarde la prise en charge des cas les plus critiques.
 
 > **Problème à résoudre :** estimer, dès le signalement, la **probabilité qu'un accident soit grave** (au moins une victime hospitalisée ou tuée), afin d'aider l'opérateur à prioriser et dimensionner les moyens.
 
@@ -50,7 +50,7 @@ Les contraintes imposent de réels arbitrages :
 
 ## 2. Environnement technique existant
 
-VigiRoute exploite un système d'information sur lequel GRAVIA vient se greffer comme brique d'aide à la décision :
+VigiRoute exploite un système d'information auquel GRAVIA s'intègre comme brique d'aide à la décision :
 
 - un **centre de régulation** recevant les appels d'urgence (15 / 18 / 112) et les signalements d'accidents ;
 - un **bus de messages** (type Kafka) diffusant les signalements en temps réel ;
@@ -68,7 +68,7 @@ Les données mobilisées couvrent les **trois dimensions des 3V**, de manière n
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
 
-> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relie le BAAC et l'injecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
+> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relit le BAAC et le réinjecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
 
 > *Les chiffres d'accidentalité (accidents corporels, tués, blessés) proviennent de l'ONISR (voir Sources). Les débits de signalements temps réel sont une **estimation du scénario** VigiRoute, dérivée de la volumétrie annuelle d'accidents.*
 
@@ -110,7 +110,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 5. Bloc 2 — Architecture de données pour l'IA
 
-**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), à partir d'un **modèle entité-relation** reliant les 4 tables BAAC. Ce choix est justifié par le besoin de requêtage analytique et de features model-ready.
+**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), à partir d'un **modèle entité-relation** reliant les 4 tables BAAC. Ce choix est justifié par le besoin de requêtage analytique et de variables prêtes pour l'entraînement.
 
 **Choix techniques justifiés.**
 
@@ -158,7 +158,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (mesure d'*equalized odds* par groupe d'âge/sexe), avec **atténuation** des biais (repondération / contrôle des variables sensibles), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
 
-> **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt qu'arrêter a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
+> **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt que tranché a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
 
 > **Deux dépôts distincts** sont prévus, conformément à l'attendu : un dépôt pour la **solution IA** (entraînement, modèle, API) et un dépôt pour le **pipeline CI/CD et l'infrastructure** (IaC, déploiement, orchestration).
 
