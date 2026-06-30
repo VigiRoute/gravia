@@ -113,23 +113,28 @@ Le BAAC étant une source **batch** (publiée ~2 fois/an) et la source opératio
 
 C'est le cœur de la défense (le jury note la **justification** des choix).
 
+**Principe directeur — deux logiques de dimensionnement.** Les choix suivent deux logiques assumées : (1) le **moteur de traitement des données** est dimensionné *au plus juste* selon le volume réel (d'où Polars/DuckDB plutôt que Spark) ; (2) l'**infrastructure et le serving** adoptent délibérément des composants *production-grade* (Kafka, Kubernetes) pour démontrer les compétences attendues (temps réel C3.1, clusters C2.6) et matérialiser l'architecture cible de production — même si la charge actuelle seule s'en passerait.
+
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
 | **Moteur de traitement** | **Polars / DuckDB** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
 | **Stockage Bronze/Silver** | Parquet sur MinIO/S3 | Colonnaire, compressé, standard lakehouse, narratif Medallion | Tout-relationnel : perd le narratif Bronze/Silver |
 | **Stockage Gold** | **PostgreSQL — schéma en étoile** | Modélisation dimensionnelle attendue (C2.3), requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
-| **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | k8s = couche de scaling, couvre C2.6 (clusters) | k8s en dev : sur-ingénierie inutile |
+| **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Couche de scaling/résilience ; couvre la compétence **cluster (C2.6)** ; **choix de démonstration assumé**, pas dicté par la charge | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple mais ne démontre pas les clusters) |
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod), alimenté par un **simulateur de rejeu BAAC** | Compatible Kafka, léger ; rejeu faute de source live (voir §2.3) | Kafka complet en dev : lourd |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod), alimenté par un **simulateur de rejeu BAAC** | Compatible Kafka, léger ; **démontre l'architecture temps réel exigée (C3.1)** et l'archi cible ; rejeu faute de source live (§2.3) | File simple (insuffisant pour démontrer le streaming) ; Kafka complet en dev : lourd |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | IaC réelle gratuite via LocalStack, cible AWS documentée | — |
 
 ### Note — démonstration Spark (optionnelle)
 Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
+
+### Note — anticiper l'objection « sur-ingénierie »
+Le rejet de Spark (volume en mémoire) et l'adoption de Kafka/Kubernetes ne sont **pas contradictoires** : le premier relève du *dimensionnement du traitement* (au plus juste), les seconds d'une *démonstration d'architecture production* explicitement attendue par le référentiel (temps réel C3.1, clusters C2.6). Pour la seule charge actuelle (quelques centaines d'événements/jour), un setup plus léger (ECS Fargate, file simple) suffirait ; Kafka et Kubernetes sont retenus comme **cible de production assumée** et **preuve de compétence**, pas par nécessité de volumétrie.
 
 ---
 
