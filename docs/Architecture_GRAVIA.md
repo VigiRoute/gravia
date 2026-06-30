@@ -245,6 +245,8 @@ erDiagram
 
 > **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Le **trafic** (débit, taux d'occupation, congestion) et le **flag d'incident** issu des bulletins, captés en temps réel, sont connus au signalement et donc valides comme features. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
 
+> **À valider après exploration.** Le schéma ci-dessus est la version de départ. L'apport prédictif des **bulletins d'incidents** et des **features de trafic**, ainsi que la modélisation des incidents (simple `flag` agrégé, table `DIM_INCIDENT` + bridge, ou abandon), seront tranchés **après l'EDA et un premier baseline**, pas a priori.
+
 ---
 
 ## 5. Architecture Medallion
