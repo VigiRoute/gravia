@@ -55,7 +55,8 @@ flowchart LR
         A1[BAAC 2005-2024]
         A2[Météo - Open-Meteo]
         A3[Géo - BAN/OSM]
-        A4[Trafic temps réel]
+        A4[Trafic temps réel\nDATEX - firehose]
+        A5[Bulletins/incidents\ntexte]
     end
 
     subgraph Ingestion
@@ -84,6 +85,7 @@ flowchart LR
     A2 --> B
     A3 --> B
     A4 --> K --> B
+    A5 --> K
     B --> S --> G
     S -.qualité.-> GE
     G --> M --> R --> API

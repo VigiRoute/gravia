@@ -5,6 +5,7 @@
 GRAVIA est un système MLOps d'**aide à la décision pour la priorisation des secours routiers** : à la remontée d'un signalement d'accident, le système prédit la **gravité probable** afin d'aider les opérateurs à prioriser et dimensionner les moyens. Projet développé pour l'organisation fictive **VigiRoute**, dans le cadre du titre RNCP **Architecte en Intelligence Artificielle**.
 
 - **Dataset source :** [BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/) — Bases de données annuelles des accidents corporels de la circulation (2005→2024)
+- **Sources d'enrichissement :** météo (Open-Meteo), trafic temps réel (DATEX II), géolocalisation (BAN/OSM), bulletins d'incidents (texte)
 - **Tâche IA :** Classification **binaire** tabulaire — `grave` / `non grave`
 - **Cible :** `grave` = au moins une victime hospitalisée ou tuée (agrégée au niveau accident)
 - **Architecture :** Medallion Bronze / Silver / Gold + MLOps complet

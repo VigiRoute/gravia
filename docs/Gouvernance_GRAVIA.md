@@ -47,7 +47,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 
 | Catégorie | Exemples | Niveau de sensibilité | Traitement |
 |---|---|---|---|
-| Données non personnelles | Conditions météo, type de route, type de collision | Public | Libre |
+| Données non personnelles | Conditions météo, **trafic temps réel**, type de route, type de collision, **bulletins d'incidents** | Public | Libre |
 | **Données personnelles** | Âge, sexe, géolocalisation précise, motif de trajet | Restreint | Pseudonymisation |
 | **Données sensibles (art. 9 RGPD)** | **Gravité = donnée de santé** | Confidentiel | Accès strict, AIPD |
 | Données opérationnelles (prod) | Signalement temps réel d'une victime identifiable | Confidentiel | Chiffrement, accès strict, traçabilité |

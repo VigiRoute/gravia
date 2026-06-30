@@ -30,7 +30,7 @@ Estimer la probabilité qu'un accident signalé soit **grave** (au moins une vic
 |---|---|---|
 | Personnelles | Âge, sexe, géolocalisation, motif de trajet | Pseudonymisées en Silver |
 | **Sensibles** | Gravité (donnée de santé) — **cible** | Accès strict |
-| Contextuelles | Date/heure, météo, route, type de collision, véhicules | Non personnelles |
+| Contextuelles | Date/heure, météo, **trafic temps réel**, route, type de collision, véhicules, **bulletins d'incidents (texte)** | Non personnelles |
 
 **Minimisation** : les identifiants directs ne sont pas utilisés ; les variables connues seulement après enquête (équipement, blessures détaillées) sont **exclues** (anti-leakage).
 
