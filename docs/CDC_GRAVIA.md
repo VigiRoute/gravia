@@ -234,8 +234,8 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 | Fort déséquilibre des classes | Modèle qui ignore les cas graves | Pondération / rééchantillonnage, métriques adaptées |
 | Ré-identification des victimes | Violation RGPD | Pseudonymisation, agrégation géo, AIPD |
 | Biais discriminatoire du scoring | Décision inéquitable | Tests d'équité, atténuation, human-in-the-loop |
-| Variété de données limitée (tabulaire) | Architecture moins riche | Enrichissements géo/météo (semi-structuré) |
-| Temps réel « cadré » et non natif | Crédibilité B3 | Assumer le scénario secours + flux trafic réel |
+| Variété initialement tabulaire | Architecture moins riche | Enrichissements semi-structurés (météo, trafic XML DATEX) et non structurés (bulletins texte) |
+| Source des signalements simulée (rejeu) | Crédibilité B3 | Flux **trafic temps réel natif** (DATEX) comme charge réelle ; rejeu des signalements assumé |
 | Dérive du parc (trottinettes/EDP) | Perte de performance | Monitoring de dérive + réentraînement |
 
 ---

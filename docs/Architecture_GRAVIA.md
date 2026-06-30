@@ -13,7 +13,7 @@
 | Dimension | Besoin / contrainte |
 |---|---|
 | **Volume** | BAAC ~2005→2024, quelques millions de lignes `usagers` (< 10 Go) — **tient en mémoire** |
-| **Variété** | Structuré (BAAC) + semi-structuré (météo, géo) + flux temps réel (trafic) |
+| **Variété** | Structuré (BAAC, CSV) + semi-structuré (météo, géo, trafic XML DATEX) + **non structuré** (bulletins/incidents texte) |
 | **Vélocité** | Batch (millésimes annuels) + ingestion temps réel des signalements (cas d'usage secours) |
 | **Latence de prédiction** | API temps réel p95 < 300 ms |
 | **Sécurité / conformité** | Données personnelles + **santé** (gravité) → chiffrement, accès restreint, RGPD, AIPD |
