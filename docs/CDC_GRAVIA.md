@@ -202,7 +202,7 @@ En conséquence, le flux temps réel est alimenté par un **simulateur de rejeu*
 | **PSI (dérive)** | < 0,2 | Détection de dérive des données | Déclencher réentraînement |
 | **Couverture de tests** | ≥ 80 % | Qualité logicielle | Bloquer la PR |
 
-> Les seuils de performance sont des **cibles provisoires**, à recalibrer après l'établissement d'une baseline (le jury valorise une cible réaliste justifiée par les résultats).
+> Les seuils de performance sont des **cibles provisoires assumées** : le **recall `grave` (0,80)** traduit le coût élevé d'un faux négatif (cas grave manqué), le **F1 macro (0,70)** une cible réaliste sur tâche déséquilibrée. Ils seront **recalibrés à l'issue du benchmark** — la valeur finale étant justifiée par les résultats mesurés, jamais fixée arbitrairement.
 
 ---
 

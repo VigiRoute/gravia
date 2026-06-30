@@ -128,14 +128,18 @@ Tout lot non conforme est **rejeté ou mis en quarantaine** et signalé au data 
 
 ## 9. Cycle de vie et conservation des données
 
-| Donnée | Durée de conservation (proposée) | Sort final |
+| Donnée | Durée de conservation | Sort final |
 |---|---|---|
 | BAAC (open data) | Durée du projet | Archivage |
-| Données opérationnelles temps réel | Durée strictement nécessaire à la décision + délai légal | Suppression / anonymisation |
-| Journaux de prédiction | 12 mois (audit) | Suppression |
-| Modèles entraînés | Versionnés (MLflow) | Archivage |
+| Données opérationnelles temps réel | Conservées le temps de l'intervention, puis **anonymisées sous 30 jours** | Anonymisation |
+| Journaux de prédiction | **12 mois** (audit / traçabilité) | Suppression |
+| Modèles entraînés | Versionnés (MLflow), conservés tant qu'actifs ou de référence | Archivage |
 
-*(Durées à valider avec le DPO selon le cadre légal applicable.)*
+*(Durées définies avec le DPO ; révisées à chaque évolution du traitement.)*
+
+### Registre des traitements
+
+Le traitement **« scoring de gravité d'accident »** est inscrit au **registre des traitements** (art. 30 RGPD), précisant : la **finalité** (aide à la priorisation des secours), la **base légale** (art. 6.1.e et 9.2.i), les **catégories de données** (personnelles + santé), les **destinataires** (opérateurs habilités), les **durées de conservation** (ci-dessus) et les **mesures de sécurité** (§7). Le registre est tenu à jour par le **DPO** et révisé à chaque évolution du traitement.
 
 ## 10. Droits des personnes concernées
 

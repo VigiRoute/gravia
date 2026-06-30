@@ -124,7 +124,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Documentation accessible.** Architecture documentée avec diagrammes (flux, ER, étoile) accompagnés de descriptions textuelles, en formats ouverts.
 
-> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmente. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée.
+> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmente. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée. Adopter par ailleurs **Kafka et Kubernetes** — non requis par la charge actuelle — relève d'une **logique distincte et assumée** : démontrer l'architecture temps réel (C3.1) et les clusters (C2.6) attendus, et matérialiser la cible de production. Le *traitement* est dimensionné au plus juste, l'*infrastructure* vise la production — ce n'est pas une contradiction.
 
 *Livrable : [document d'architecture](Architecture_GRAVIA.md).*
 
@@ -136,7 +136,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **ETL/ELT entre sources hétérogènes.** Le flux **Bronze → Silver → Gold** intègre des sources hétérogènes (BAAC, météo, géolocalisation, trafic) : nettoyage, typage, **pseudonymisation**, jointures d'enrichissement, encodage, puis construction du schéma en étoile et du label `is_grave`.
 
-**Automatisation complète.** Orchestration par **Airflow** : collecte, traitement, mise à jour, **alertes** et **reprise sur erreur** (retries, redémarrage) sans intervention manuelle.
+**Automatisation complète.** Orchestration par **Airflow** : collecte, traitement, mise à jour, **alertes** et **reprise sur erreur** (retries, redémarrage) sans intervention manuelle. Chaque tâche est **idempotente et relançable** (rejouable sans effet de bord).
 
 **Contrôle qualité.** Validation par **Great Expectations** à chaque exécution (codes BAAC valides, complétude des clés, plausibilité des valeurs) ; les lots non conformes sont mis en quarantaine et signalés.
 
@@ -156,7 +156,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Monitoring en production.** Suivi des performances et de la latence, alertes proactives, vérification du respect des spécifications.
 
-**Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (équité selon âge/sexe), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
+**Conformité et éthique.** RGPD, Loi Informatique et Libertés, ISO 27001 ; **IA éthique** : explicabilité (SHAP), **tests de non-discrimination** (mesure d'*equalized odds* par groupe d'âge/sexe), avec **atténuation** des biais (repondération / contrôle des variables sensibles), respect de la vie privée, **human-in-the-loop** ; **accessibilité** des interfaces et documents (RGAA).
 
 > **Justification du choix.** Le choix du modèle est **différé au résultat d'un benchmark** plutôt qu'arrêter a priori : c'est plus rigoureux et reproductible (comparaison tracée dans MLflow). Un **modèle profond est néanmoins écarté d'emblée** : sur des données tabulaires de ce volume il n'apporterait pas de gain et nuirait à l'explicabilité, exigence réglementaire ici. La famille **gradient boosting** est privilégiée a priori pour sa performance sur tabulaire déséquilibré et sa compatibilité naturelle avec SHAP, mais la décision finale dépendra des métriques mesurées.
 
