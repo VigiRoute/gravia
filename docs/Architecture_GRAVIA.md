@@ -124,6 +124,7 @@ C'est le cœur de la défense (le jury note la **justification** des choix).
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
 | **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Couche de scaling/résilience ; couvre la compétence **cluster (C2.6)** ; **choix de démonstration assumé**, pas dicté par la charge | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple mais ne démontre pas les clusters) |
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
+| **Cache** | Redis (dev) / ElastiCache (prod) | Cache des **enrichissements temps réel** (trafic/météo par zone, rafraîchis périodiquement) : évite un appel externe à chaque prédiction et aide à tenir la **latence p95 < 300 ms** | Aucun cache : appels externes répétés, latence dégradée |
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
