@@ -209,6 +209,9 @@ erDiagram
         boolean flag_moto
         boolean flag_poids_lourd
         boolean flag_pieton
+        float trafic_debit
+        float trafic_taux_occupation
+        boolean flag_incident_signale
         boolean is_grave "LABEL"
     }
     DIM_DATE {
@@ -232,6 +235,7 @@ erDiagram
         int luminosite
         int meteo
         int etat_surface
+        int niveau_congestion
     }
     DIM_COLLISION {
         int collision_key PK
@@ -239,7 +243,7 @@ erDiagram
     }
 ```
 
-> **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
+> **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Le **trafic** (débit, taux d'occupation, congestion) et le **flag d'incident** issu des bulletins, captés en temps réel, sont connus au signalement et donc valides comme features. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
 
 ---
 
