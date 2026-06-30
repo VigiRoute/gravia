@@ -110,7 +110,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 5. Bloc 2 — Architecture de données pour l'IA
 
-**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), à partir d'un **modèle entité-relation** reliant les 4 tables BAAC. Ce choix est justifié par le besoin de requêtage analytique et de variables prêtes pour l'entraînement.
+**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), construit **à partir des 4 tables BAAC enrichies des sources externes (météo, trafic, bulletins)**. Ce choix est justifié par le besoin de requêtage analytique et de variables prêtes pour l'entraînement.
 
 **Choix techniques justifiés.**
 
