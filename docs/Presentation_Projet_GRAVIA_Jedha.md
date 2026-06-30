@@ -132,7 +132,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 6. Bloc 3 — Pipelines de données pour l'IA
 
-**Conception batch + temps réel.** Le pipeline combine un traitement **batch** (chargement des millésimes BAAC, réentraînement) et une **ingestion temps réel** des signalements via **Redpanda** (compatible Kafka), adaptée aux contraintes de vélocité. Faute de source live, ce flux est alimenté par un **simulateur de rejeu du BAAC** (voir section 2).
+**Conception batch et temps réel.** Le pipeline fonctionne sur deux rythmes. En batch, il charge les millésimes BAAC et réentraîne le modèle. En temps réel, il reçoit en continu les données de trafic des capteurs, c'est-à-dire l'état de circulation au format DATEX II, soit plusieurs milliers de mesures chaque minute : c'est ce flux nourri qui justifie l'usage d'un bus de messages comme Redpanda. Les signalements d'accidents à évaluer arrivent sur ce même bus ; comme il n'existe pas de source ouverte pour les obtenir en direct, on les rejoue à partir du BAAC (voir section 2).
 
 **ETL/ELT entre sources hétérogènes.** Le flux **Bronze → Silver → Gold** intègre des sources hétérogènes (BAAC, météo, géolocalisation, trafic) : nettoyage, typage, **pseudonymisation**, jointures d'enrichissement, encodage, puis construction du schéma en étoile et du label `is_grave`.
 
