@@ -101,11 +101,12 @@ flowchart LR
 | Flux | Origine | Réel / simulé |
 |---|---|---|
 | Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | Réel |
-| **Signalements temps réel** | **Simulateur de rejeu** : un producteur relit le BAAC et l'injecte dans Redpanda/Kafka, horodaté comme un flux live | **Simulé** |
+| **Signalements** (à scorer) | **Simulateur de rejeu** : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Simulé** |
+| **Trafic temps réel** (firehose) | État de circulation RRN + métropoles (débit/occupation, DATEX II), **milliers de mesures toutes les 1–6 min** | **Réel** |
 | Météo | API **Open-Meteo** | Réel (temps réel) |
-| Trafic | Bison Futé / Waze for Cities | Partiel |
+| Bulletins / incidents | Bulletins Bison Futé / alertes (**texte**, NLP léger) | Réel |
 
-Le BAAC étant une source **batch** (publiée ~2 fois/an) et la source opérationnelle réelle (régulation des secours) n'étant **pas en open data**, le flux de signalements est **simulé par rejeu**. L'architecture temps réel (bus de messages, enrichissement, inférence) est, elle, **réelle et fonctionnelle** ; en production, le simulateur serait remplacé par le feed réel de l'opérateur.
+Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min) : c'est elle qui justifie un bus de messages. Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
 
 ---
 
@@ -113,7 +114,7 @@ Le BAAC étant une source **batch** (publiée ~2 fois/an) et la source opératio
 
 C'est le cœur de la défense (le jury note la **justification** des choix).
 
-**Principe directeur — deux logiques de dimensionnement.** Les choix suivent deux logiques assumées : (1) le **moteur de traitement des données** est dimensionné *au plus juste* selon le volume réel (d'où Polars/DuckDB plutôt que Spark) ; (2) l'**infrastructure et le serving** adoptent délibérément des composants *production-grade* (Kafka, Kubernetes) pour démontrer les compétences attendues (temps réel C3.1, clusters C2.6) et matérialiser l'architecture cible de production — même si la charge actuelle seule s'en passerait.
+**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence** — les données de trafic capteur (milliers de mesures/min) ; (3) **Kubernetes** dépasse la charge actuelle et est retenu comme **cible de production** et pour couvrir la compétence cluster (C2.6) — choix de démonstration assumé.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
@@ -126,15 +127,15 @@ C'est le cœur de la défense (le jury note la **justification** des choix).
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod), alimenté par un **simulateur de rejeu BAAC** | Compatible Kafka, léger ; **démontre l'architecture temps réel exigée (C3.1)** et l'archi cible ; rejeu faute de source live (§2.3) | File simple (insuffisant pour démontrer le streaming) ; Kafka complet en dev : lourd |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) ; couvre C3.1 | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | IaC réelle gratuite via LocalStack, cible AWS documentée | — |
 
 ### Note — démonstration Spark (optionnelle)
 Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
 
-### Note — anticiper l'objection « sur-ingénierie »
-Le rejet de Spark (volume en mémoire) et l'adoption de Kafka/Kubernetes ne sont **pas contradictoires** : le premier relève du *dimensionnement du traitement* (au plus juste), les seconds d'une *démonstration d'architecture production* explicitement attendue par le référentiel (temps réel C3.1, clusters C2.6). Pour la seule charge actuelle (quelques centaines d'événements/jour), un setup plus léger (ECS Fargate, file simple) suffirait ; Kafka et Kubernetes sont retenus comme **cible de production assumée** et **preuve de compétence**, pas par nécessité de volumétrie.
+### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
+Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** est justifié par un **flux haute fréquence réel** (trafic capteur, milliers de mesures/min) — ce n'est pas de la sur-ingénierie ; seul **Kubernetes** dépasse la charge actuelle et est retenu comme **cible de production** et **preuve de compétence cluster (C2.6)**.
 
 ---
 

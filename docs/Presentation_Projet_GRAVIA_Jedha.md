@@ -53,22 +53,22 @@ Les contraintes imposent de réels arbitrages :
 VigiRoute exploite un système d'information auquel GRAVIA s'intègre comme brique d'aide à la décision :
 
 - un **centre de régulation** recevant les appels d'urgence (15 / 18 / 112) et les signalements d'accidents ;
-- un **bus de messages** (type Kafka) diffusant les signalements en temps réel ;
+- un **bus de messages** (type Kafka) absorbant le **flux de trafic temps réel** (capteurs) et les signalements ;
 - un **data lake** sur stockage objet (type S3) pour les données brutes et l'historique ;
 - un **entrepôt analytique PostgreSQL** alimentant l'entraînement et les analyses ;
-- des **connecteurs** vers des sources externes (météo, trafic).
+- des **connecteurs** vers des sources externes temps réel (trafic capteur, météo) et des bulletins d'incidents (texte).
 
 Les données mobilisées couvrent les **trois dimensions des 3V**, de manière non triviale :
 
 | Dimension | Réalité du projet | Ordre de grandeur |
 |---|---|---|
-| **Volume** | Historique **BAAC** 2005→2024 + données enrichies (météo, géo) | Plusieurs millions de lignes `usagers` (~50–60 000 accidents/an sur ~20 ans) |
-| **Vélocité** | Flux temps réel des signalements + flux trafic, en plus du batch annuel | De l'ordre de **150 accidents corporels/jour** en moyenne (~50 000/an), plusieurs centaines à milliers de signalements/jour en incluant les accidents matériels, avec de forts pics horaires ; flux trafic rafraîchi toutes les quelques minutes |
-| **Variété** | Structuré + semi-structuré + flux événementiel | BAAC (4 tables relationnelles), météo/géo (semi-structuré), signalements (flux JSON) |
+| **Volume** | Historique **BAAC** 2005→2024 + données enrichies (météo, géo, trafic) | Plusieurs millions de lignes `usagers` (~50–60 000 accidents/an sur ~20 ans) |
+| **Vélocité** | **Flux trafic capteur temps réel** (firehose) + signalements à scorer, en plus du batch annuel | Trafic : **milliers de mesures/min** (débit/occupation recalculés toutes les 1–6 min sur 3 000+ points) ; signalements : ~150 accidents corporels/jour |
+| **Variété** | Structuré + semi-structuré + **non structuré** | BAAC (CSV tabulaire), trafic (**XML DATEX II**), signalements (JSON), **bulletins/incidents (texte, NLP léger)** |
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
 
-> **Origine du flux temps réel.** Il n'existe pas de source temps réel ouverte pour les signalements d'accidents (le BAAC est un historique batch, et la régulation des secours n'est pas en open data). Le flux est donc alimenté par un **simulateur de rejeu** qui relit le BAAC et le réinjecte comme un flux d'événements ; seuls les enrichissements **météo** (Open-Meteo) proviennent d'une vraie API temps réel. L'architecture temps réel reste réelle et fonctionnelle — seule la *source* des signalements est simulée, et serait remplacée en production par le feed réel de l'opérateur.
+> **Origine du flux temps réel.** Le **flux haute fréquence** du système est la **donnée de trafic capteur** (état de circulation temps réel, DATEX II — milliers de mesures/min), bien réelle : c'est elle qui justifie le bus de messages. Les **signalements** à scorer sont des événements peu fréquents pour lesquels il n'existe pas de source ouverte (le BAAC est batch, la régulation des secours n'est pas en open data) : ils sont donc **simulés par rejeu du BAAC**. L'architecture temps réel reste réelle et fonctionnelle — seule la *source des signalements* est simulée, et serait remplacée en production par le feed réel de l'opérateur.
 
 > *Les chiffres d'accidentalité (accidents corporels, tués, blessés) proviennent de l'ONISR (voir Sources). Les débits de signalements temps réel sont une **estimation du scénario** VigiRoute, dérivée de la volumétrie annuelle d'accidents.*
 
@@ -124,7 +124,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Documentation accessible.** Architecture documentée avec diagrammes (flux, ER, étoile) accompagnés de descriptions textuelles, en formats ouverts.
 
-> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmente. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée. Adopter par ailleurs **Kafka et Kubernetes** — non requis par la charge actuelle — relève d'une **logique distincte et assumée** : démontrer l'architecture temps réel (C3.1) et les clusters (C2.6) attendus, et matérialiser la cible de production. Le *traitement* est dimensionné au plus juste, l'*infrastructure* vise la production — ce n'est pas une contradiction.
+> **Justification du choix.** **Polars/DuckDB** ont été préférés à Spark : le volume tient en mémoire (< 10 Go), donc un moteur distribué serait sous-utilisé et difficile à justifier (sur-ingénierie). Spark est documenté comme **voie de montée en charge** si la volumétrie augmente. De même, **LocalStack** permet un déploiement Terraform réel et gratuit, sans dépendre d'un cloud payant, tout en conservant une **architecture cible AWS** documentée. Le bus **Kafka** est, lui, justifié par un **flux trafic temps réel à haute fréquence** (milliers de mesures/min) — pas par les seuls signalements. Seul **Kubernetes** dépasse la charge actuelle : il est assumé comme **cible de production** et **preuve de compétence cluster (C2.6)**. Le traitement est dimensionné au plus juste, l'infrastructure vise la production — ce n'est pas une contradiction.
 
 *Livrable : [document d'architecture](Architecture_GRAVIA.md).*
 
@@ -183,5 +183,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 - ONISR — *Bilan définitif 2024 de la sécurité routière* : https://www.onisr.securite-routiere.gouv.fr/en/road-safety-performance/annual-road-safety-reports/2024-road-safety-annual-report (≈ 3 432 tués France entière, ≈ 235 000 blessés dont ≈ 16 000 graves).
 - ONISR — *Bilan 2023 de la sécurité routière* : https://www.onisr.securite-routiere.gouv.fr/en/road-safety-performance/annual-road-safety-reports/2023-road-safety-annual-report
 - Données BAAC (accidents corporels 2005→2024), data.gouv.fr : https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/
+- État de circulation en temps réel (réseau routier national, DATEX II), transport.data.gouv.fr : https://transport.data.gouv.fr/datasets/etat-de-circulation-en-temps-reel-sur-le-reseau-national-routier-non-concede
+- Comptages routiers permanents (capteurs), opendata.paris.fr : https://opendata.paris.fr/explore/dataset/comptages-routiers-permanents/
 
 > Le **nombre d'accidents corporels** (~50 000/an) est un ordre de grandeur issu des bases BAAC ; les **débits de signalements temps réel** sont une estimation propre au scénario fictif VigiRoute, non issue d'une statistique officielle.

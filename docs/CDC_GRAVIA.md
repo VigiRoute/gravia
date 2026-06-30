@@ -115,7 +115,8 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 | **BAAC** (data.gouv.fr) | 4 tables : `caractéristiques`, `lieux`, `véhicules`, `usagers` (~2005→2024) | Structuré | Annuelle (millésime) |
 | Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel |
 | BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel |
-| Bison Futé / Waze for Cities | État du trafic | Flux temps réel | Streaming |
+| **État de circulation temps réel** (RRN + métropoles, DATEX II) | Débit, vitesse, taux d'occupation (3 000+ points) | Semi-structuré (XML) | **Temps réel (1–6 min), haute fréquence** |
+| Bulletins / incidents (Bison Futé) | Alertes et événements trafic | **Non structuré (texte)** | Temps réel |
 | **Signalements** (à scorer) | Accidents entrants à classer à la volée | Flux d'événements | **Simulé par rejeu du BAAC** (voir §6.4) |
 
 ### 6.2 Volumétrie
@@ -131,7 +132,7 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 
 Le BAAC est une source **batch** (publiée ~2 fois/an) : ce n'est **pas** une source temps réel. La source opérationnelle réelle des signalements d'accidents (régulation des secours 15 / 18 / 112) **n'est pas accessible en open data**.
 
-En conséquence, le flux temps réel est alimenté par un **simulateur de rejeu** (*replay*) : un producteur lit les enregistrements BAAC et les réinjecte dans le bus de messages (Redpanda/Kafka) avec un horodatage, comme s'ils arrivaient en direct. Seuls les **enrichissements météo** (API Open-Meteo) — et, partiellement, le trafic — proviennent de **véritables flux temps réel**.
+En conséquence, le flux de **signalements** est alimenté par un **simulateur de rejeu** (*replay*) : un producteur lit les enregistrements BAAC et les réinjecte dans le bus de messages (Redpanda/Kafka) avec un horodatage, comme s'ils arrivaient en direct. En revanche, les **données de trafic temps réel** (état de circulation, DATEX II — milliers de mesures/min) et la **météo** (Open-Meteo) proviennent de **véritables flux temps réel** : le **trafic constitue le flux haute fréquence** qui justifie le bus de messages, tandis que les signalements en sont les événements (peu fréquents) à scorer.
 
 > **Choix d'architecture assumé.** L'architecture temps réel (bus de messages, enrichissement, inférence) est **réelle et fonctionnelle** ; seule la *source* des signalements est simulée. En production, le simulateur serait remplacé par le **feed réel de l'opérateur** (Kafka managé).
 
