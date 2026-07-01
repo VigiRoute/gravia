@@ -56,7 +56,7 @@ VigiRoute exploite un système d'information auquel GRAVIA s'intègre comme briq
 - un **bus de messages** (type Kafka) absorbant le **flux de trafic temps réel** (capteurs) et les signalements ;
 - un **data lake** sur stockage objet (type S3) pour les données brutes et l'historique ;
 - un **entrepôt analytique PostgreSQL** alimentant l'entraînement et les analyses ;
-- des **connecteurs** vers des sources externes temps réel (trafic capteur, météo) et des bulletins d'incidents (texte).
+- des **connecteurs** vers des sources externes temps réel (trafic capteur, météo).
 
 Les données mobilisées couvrent les **trois dimensions des 3V**, de manière non triviale :
 
@@ -64,7 +64,7 @@ Les données mobilisées couvrent les **trois dimensions des 3V**, de manière n
 |---|---|---|
 | **Volume** | Historique **BAAC** 2005→2024 + données enrichies (météo, géo, trafic) | Plusieurs millions de lignes `usagers` (~50–60 000 accidents/an sur ~20 ans) |
 | **Vélocité** | **Flux trafic capteur temps réel** (firehose) + signalements à scorer, en plus du batch annuel | Trafic : **milliers de mesures/min** (débit/occupation recalculés toutes les 1–6 min sur 3 000+ points) ; signalements : ~150 accidents corporels/jour |
-| **Variété** | Structuré + semi-structuré + **non structuré** | BAAC (CSV tabulaire), trafic (**XML DATEX II**), signalements (JSON), **bulletins/incidents (texte, NLP léger)** |
+| **Variété** | Structuré + semi-structuré | BAAC (CSV tabulaire), trafic (**XML DATEX II**, testé puis écarté comme feature de modèle), signalements (JSON) |
 
 Le système combine ainsi une **ingestion batch** (chargement des millésimes, réentraînement périodique) et une **ingestion temps réel** (signalements à scorer à la volée), ce qui impose une architecture capable d'absorber les deux régimes.
 
@@ -110,7 +110,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 ## 5. Bloc 2 — Architecture de données pour l'IA
 
-**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), construit **à partir des 4 tables BAAC enrichies des sources externes (météo, trafic, bulletins)**. Ce choix est justifié par le besoin de requêtage analytique et de variables prêtes pour l'entraînement.
+**Modélisation.** L'architecture repose sur un **modèle Medallion Bronze / Silver / Gold**. La couche Gold est modélisée en **schéma en étoile** (table de faits `fact_accident` au grain de l'accident, dimensions `date`, `lieu`, `conditions`, `collision`), construit **à partir des 4 tables BAAC enrichies de sources externes (météo)**. Le trafic (DATEX II) et les bulletins d'incidents ont été explorés puis écartés du schéma final : le trafic n'apporte pas de gain prédictif mesurable une fois le modèle doté des variables temporelles, et aucune source réelle de bulletins n'a été identifiée. Ce choix est justifié par le besoin de requêtage analytique et de variables prêtes pour l'entraînement.
 
 **Choix techniques justifiés.**
 
@@ -134,7 +134,7 @@ GRAVIA s'appuie sur un **plan de gouvernance complet** et une **AIPD** (méthodo
 
 **Conception batch et temps réel.** Le pipeline fonctionne sur deux rythmes. En batch, il charge les millésimes BAAC et réentraîne le modèle. En temps réel, il reçoit en continu les données de trafic des capteurs, c'est-à-dire l'état de circulation au format DATEX II, soit plusieurs milliers de mesures chaque minute : c'est ce flux nourri qui justifie l'usage d'un bus de messages comme Redpanda. Les signalements d'accidents à évaluer arrivent sur ce même bus ; comme il n'existe pas de source ouverte pour les obtenir en direct, on les rejoue à partir du BAAC (voir section 2).
 
-**ETL/ELT entre sources hétérogènes.** Le flux **Bronze → Silver → Gold** intègre des sources hétérogènes (BAAC, météo, géolocalisation, trafic) : nettoyage, typage, **pseudonymisation**, jointures d'enrichissement, encodage, puis construction du schéma en étoile et du label `is_grave`. Les sources d'enrichissement sont hiérarchisées par fiabilité : le trafic, qui dispose d'archives historiques et d'un vrai flux temps réel, est prioritaire, tandis que les bulletins d'incidents, plus fragiles, ne seront retenus que si l'exploration des données confirme leur apport.
+**ETL/ELT entre sources hétérogènes.** Le flux **Bronze → Silver → Gold** intègre des sources hétérogènes (BAAC, météo, géolocalisation) : nettoyage, typage, **pseudonymisation**, jointures d'enrichissement, encodage, puis construction du schéma en étoile et du label `is_grave`. Le trafic et les bulletins d'incidents ont été évalués comme sources d'enrichissement potentielles : le trafic (DATEX II national + capteurs Paris) a montré un signal statistique réel mais un gain prédictif nul une fois testé en modèle multivarié (features temporelles déjà suffisantes) — écarté ; les bulletins n'ont pas de source réelle identifiée — retirés du périmètre.
 
 **Automatisation complète.** Orchestration par **Airflow** : collecte, traitement, mise à jour, **alertes** et **reprise sur erreur** (retries, redémarrage) sans intervention manuelle. Chaque tâche est **idempotente et relançable** (rejouable sans effet de bord).
 

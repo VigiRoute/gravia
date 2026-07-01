@@ -116,8 +116,9 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 | Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel |
 | BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel |
 | **État de circulation temps réel** (RRN + métropoles, DATEX II) | Débit, vitesse, taux d'occupation (3 000+ points) | Semi-structuré (XML) | **Temps réel (1–6 min), haute fréquence** |
-| Bulletins / incidents (Bison Futé) | Alertes et événements trafic | **Non structuré (texte)** | Temps réel |
 | **Signalements** (à scorer) | Accidents entrants à classer à la volée | Flux d'événements | **Simulé par rejeu du BAAC** (voir §6.4) |
+
+> **Bulletins d'incidents (texte)** — retirés du périmètre. L'exploration (§13.6) n'a identifié aucune source réelle correspondante ; la mention initiale provenait d'un mauvais étiquetage d'une source de comptage trafic structurée, pas d'un flux texte. La variété "non structurée" du dataset n'est donc plus démontrée à ce stade — à re-sourcer ou à retirer du discours 3V si aucune source texte n'est identifiée par ailleurs.
 
 ### 6.2 Volumétrie
 - Ordre de grandeur : plusieurs millions de lignes `usagers` sur ~20 ans (~50–60k accidents/an).
@@ -224,7 +225,8 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 3. ✅ **Seuils de performance** : cibles provisoires assumées, à recalibrer après baseline — validé.
 4. ✅ **Scénario temps réel** : flux alimenté par un **simulateur de rejeu du BAAC** (+ météo/trafic réels) — choix d'architecture **assumé et documenté** (§6.4).
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
-6. **Enrichissements — trafic prioritaire, bulletins exploratoires** : le **trafic** est le pari le plus sûr (archives historiques exploitables pour l'entraînement, vrai flux temps réel) ; les **bulletins** sont plus fragiles (historique incertain, surtout utiles à la variété). Apport prédictif et modélisation tranchés après l'EDA ; bulletins **abandonnés s'ils ne sont pas exploitables**.
+6. ✅ **Enrichissements — trafic testé et écarté comme feature, bulletins retirés** : le **trafic** (DATEX II national + capteurs Paris) a été exploré et testé en modèle (jointure, corrélation statistique, gain prédictif mesuré avec/sans la feature, en modèle dédié Paris puis en configuration nationale sparse). Résultat : signal statistique réel mais **gain prédictif nul** une fois intégré à un modèle multivarié qui a déjà accès à l'heure/jour/mois — **écarté comme enrichissement du modèle**. Le flux temps réel DATEX reste pertinent comme justification architecturale (vélocité, bus de messages), indépendamment de son usage en feature. Les **bulletins d'incidents** sont **retirés** : aucune source réelle identifiée après recherche — validé.
+7. **Seuils de performance — tension identifiée entre recall et F1 macro** : le baseline BAAC (sans enrichissement) atteint les seuils nationaux agrégés (recall grave 0,808, F1 macro 0,708), mais un seuil de décision unique masque un angle mort : recall de seulement 0,007 sur le sous-ensemble parisien (taux de gravité structurellement plus faible, ~9 % vs ~36 % national). Calibrer des seuils différenciés par zone répare le recall local (jusqu'à 0,777 par département) mais fait chuter le F1 macro national sous le seuil CDC (jusqu'à 0,573) — **les deux seuils ne sont pas simultanément atteignables avec le modèle actuel par simple calibration de seuil**. À trancher avant mise en production : enrichir les features pour les contextes à faible taux de base, et/ou arbitrer explicitement la priorité entre recall local et F1 macro global (cf. §14 Risques).
 
 ---
 
@@ -235,9 +237,10 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 | Fort déséquilibre des classes | Modèle qui ignore les cas graves | Pondération / rééchantillonnage, métriques adaptées |
 | Ré-identification des victimes | Violation RGPD | Pseudonymisation, agrégation géo, AIPD |
 | Biais discriminatoire du scoring | Décision inéquitable | Tests d'équité, atténuation, human-in-the-loop |
-| Variété initialement tabulaire | Architecture moins riche | Enrichissements semi-structurés (météo, trafic XML DATEX) et non structurés (bulletins texte) |
+| Variété initialement tabulaire | Architecture moins riche | Enrichissement semi-structuré réel (météo, trafic XML DATEX en temps réel) ; testé comme feature d'entraînement mais écarté (gain nul, cf. §13.6) — la variété non structurée (bulletins) n'a pas de source réelle identifiée |
 | Source des signalements simulée (rejeu) | Crédibilité B3 | Flux **trafic temps réel natif** (DATEX) comme charge réelle ; rejeu des signalements assumé |
 | Dérive du parc (trottinettes/EDP) | Perte de performance | Monitoring de dérive + réentraînement |
+| Seuil de décision unique masquant un angle mort local (recall quasi nul sur des zones à faible taux de gravité de base, ex. Paris ~9 % vs national ~36 %) | Système peu sûr localement malgré un recall national conforme | Vérifier le recall par sous-groupe (zone/dep) avant mise en production, pas seulement l'agrégat national ; arbitrer explicitement recall local vs F1 macro global si les deux seuils ne sont pas simultanément atteignables (cf. §13.7) |
 
 ---
 

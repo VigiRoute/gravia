@@ -13,7 +13,7 @@
 | Dimension | Besoin / contrainte |
 |---|---|
 | **Volume** | BAAC ~2005→2024, quelques millions de lignes `usagers` (< 10 Go) — **tient en mémoire** |
-| **Variété** | Structuré (BAAC, CSV) + semi-structuré (météo, géo, trafic XML DATEX) + **non structuré** (bulletins/incidents texte) |
+| **Variété** | Structuré (BAAC, CSV) + semi-structuré (météo, géo, trafic XML DATEX — testé puis écarté comme feature d'entraînement, gain prédictif nul) |
 | **Vélocité** | Batch (millésimes annuels) + ingestion temps réel des signalements (cas d'usage secours) |
 | **Latence de prédiction** | API temps réel p95 < 300 ms |
 | **Sécurité / conformité** | Données personnelles + **santé** (gravité) → chiffrement, accès restreint, RGPD, AIPD |
@@ -56,7 +56,6 @@ flowchart LR
         A2[Météo - Open-Meteo]
         A3[Géo - BAN/OSM]
         A4[Trafic temps réel\nDATEX - firehose]
-        A5[Bulletins/incidents\ntexte]
     end
 
     subgraph Ingestion
@@ -85,7 +84,6 @@ flowchart LR
     A2 --> B
     A3 --> B
     A4 --> K --> B
-    A5 --> K
     B --> S --> G
     S -.qualité.-> GE
     G --> M --> R --> API
@@ -106,9 +104,10 @@ flowchart LR
 | **Signalements** (à scorer) | **Simulateur de rejeu** : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Simulé** |
 | **Trafic temps réel** (firehose) | État de circulation RRN + métropoles (débit/occupation, DATEX II), **milliers de mesures toutes les 1–6 min** | **Réel** |
 | Météo | API **Open-Meteo** | Réel (temps réel) |
-| Bulletins / incidents | Bulletins Bison Futé / alertes (**texte**, NLP léger) | Réel |
 
-Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min) : c'est elle qui justifie un bus de messages. Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
+Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min) : c'est elle qui justifie un bus de messages, indépendamment de son usage (ou non) comme feature du modèle de gravité (testé et écarté, cf. CDC §13.6). Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
+
+> **Bulletins d'incidents (texte)** — retirés du périmètre (source réelle non identifiée, cf. CDC §13.6). Aucun flux non structuré n'alimente donc le pipeline à ce stade ; la variété du dataset repose sur structuré + semi-structuré uniquement.
 
 ---
 
@@ -209,9 +208,6 @@ erDiagram
         boolean flag_moto
         boolean flag_poids_lourd
         boolean flag_pieton
-        float trafic_debit
-        float trafic_taux_occupation
-        boolean flag_incident_signale
         boolean is_grave "LABEL"
     }
     DIM_DATE {
@@ -235,7 +231,6 @@ erDiagram
         int luminosite
         int meteo
         int etat_surface
-        int niveau_congestion
     }
     DIM_COLLISION {
         int collision_key PK
@@ -243,9 +238,9 @@ erDiagram
     }
 ```
 
-> **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Le **trafic** (débit, taux d'occupation, congestion) et le **flag d'incident** issu des bulletins, captés en temps réel, sont connus au signalement et donc valides comme features. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
+> **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
 
-> **À valider après exploration.** Le schéma ci-dessus est la version de départ. L'apport prédictif des **bulletins d'incidents** et des **features de trafic**, ainsi que la modélisation des incidents (simple `flag` agrégé, table `DIM_INCIDENT` + bridge, ou abandon), seront tranchés **après l'EDA et un premier baseline**, pas a priori. Le **trafic** est l'enrichissement prioritaire (archives historiques, vrai flux temps réel) ; les **bulletins**, plus fragiles, ne seront retenus que si l'EDA confirme leur apport.
+> **Décidé après exploration (EDA + baseline, cf. CDC §13.6-7).** Le schéma ci-dessus reflète la décision finale, pas la version de départ : ni le **trafic** ni les **bulletins d'incidents** n'apparaissent comme features. Le trafic a été testé (jointure, corrélation statistique, gain mesuré en modèle dédié Paris puis en configuration nationale sparse) et **écarté** : signal réel mais gain prédictif nul une fois le modèle doté des variables temporelles (heure/jour/mois). Les bulletins sont **retirés** : aucune source réelle identifiée. Le baseline BAAC seul atteint déjà les seuils CDC agrégés (recall grave 0,808, F1 macro 0,708), avec une réserve importante documentée en CDC §14 : un seuil de décision unique masque un recall quasi nul sur les zones à faible taux de gravité de base (ex. Paris), à traiter avant mise en production.
 
 ---
 
