@@ -222,7 +222,7 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 
 1. ✅ **Cible** : binaire `grave`/`non grave` — **validé**. Multi-classes 4 niveaux = extension possible.
 2. ✅ **Périmètre géographique** : **France entière** — validé (volumétrie maîtrisable ; repli sur un sous-ensemble seulement si contrainte technique avérée).
-3. ✅ **Seuils de performance** : cibles provisoires assumées, à recalibrer après baseline — validé.
+3. ✅ **Seuils de performance (définition)** : cibles provisoires assumées, à recalibrer après baseline — validé. Le baseline confirme les valeurs cibles à l'échelle nationale, mais révèle une tension d'application par sous-groupe : voir item 7 ci-dessous, non close.
 4. ✅ **Scénario temps réel** : flux alimenté par un **simulateur de rejeu du BAAC** (+ météo/trafic réels) — choix d'architecture **assumé et documenté** (§6.4).
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
 6. ✅ **Enrichissements — trafic testé et écarté comme feature, bulletins retirés** : le **trafic** (DATEX II national + capteurs Paris) a été exploré et testé en modèle (jointure, corrélation statistique, gain prédictif mesuré avec/sans la feature, en modèle dédié Paris puis en configuration nationale sparse). Résultat : signal statistique réel mais **gain prédictif nul** une fois intégré à un modèle multivarié qui a déjà accès à l'heure/jour/mois — **écarté comme enrichissement du modèle**. Le flux temps réel DATEX reste pertinent comme justification architecturale (vélocité, bus de messages), indépendamment de son usage en feature. Les **bulletins d'incidents** sont **retirés** : aucune source réelle identifiée après recherche — validé.
