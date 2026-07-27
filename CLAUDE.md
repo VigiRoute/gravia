@@ -110,7 +110,7 @@ gravia-mlops/
 ## Conventions de code
 
 ### Python
-- Version : **Python 3.10+**
+- Version : **Python 3.12** (seule version testée ; dépendances figées dans `pyproject.toml`)
 - Style : **PEP 8** — linting `ruff`, formatage `black`
 - Type hints : **obligatoires** sur toutes les fonctions publiques
 - Docstrings : format **Google style**
