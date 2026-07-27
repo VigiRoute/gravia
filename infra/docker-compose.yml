@@ -8,6 +8,12 @@
 # Versions figées volontairement (cf. pyproject.toml pour le même principe côté Python) :
 # une stack reproductible est une exigence du CDC, `latest` l'interdirait de fait.
 
+# Nom de projet explicite. Sans lui, Docker Compose déduit le nom du dossier parent —
+# ici `infra`, générique au point d'entrer en collision avec tout autre projet ayant un
+# dossier `infra/` : les volumes seraient partagés et PostgreSQL refuserait de démarrer sur
+# un répertoire de données initialisé par une autre version. Préfixe donc tout en `gravia_`.
+name: gravia
+
 x-airflow-common: &airflow-common
   image: apache/airflow:3.3.0
   environment: &airflow-env
