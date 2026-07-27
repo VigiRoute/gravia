@@ -45,7 +45,7 @@
 | IaC | **Terraform via LocalStack** | **Terraform → AWS** |
 | CI/CD | GitHub Actions | GitHub Actions |
 
-> **Stratégie de déploiement** : la prod est déployée **réellement** via Terraform contre **LocalStack** (émulation AWS locale, gratuite) → fournit l'IaC + la vidéo « infra en production » du référentiel sans coût. L'architecture **cible AWS** est documentée pour la défense orale.
+> **Stratégie de déploiement — portée exacte de la démonstration LocalStack.** Le **même code Terraform** (mêmes modules, mêmes ressources) cible LocalStack ou AWS réel : seuls l'endpoint et les identifiants changent, aucune ligne d'IaC n'est spécifique à l'émulateur. Le `terraform apply` contre **LocalStack** (émulation locale et gratuite de l'API AWS) est un déploiement **réel** du code d'infrastructure — ressources effectivement créées, dépendances résolues, aucun plan simulé. **Ce que ça démontre** : l'IaC de production est complet et exécutable de bout en bout. **Ce que ça ne démontre pas** : une charge de production réelle (trafic utilisateur, coûts, latence réseau inter-AZ, SLA) — hors de portée sans budget cloud payant. Le référentiel autorisant une démonstration « dans le cloud ou on-premise », LocalStack (exécution locale, API cloud fidèle) se situe explicitement à cette frontière. L'architecture **cible AWS** est intégralement documentée pour la bascule réelle et pour la défense orale.
 
 ### 2.2 Schéma logique
 
@@ -105,7 +105,7 @@ flowchart LR
 | **Trafic temps réel** (firehose) | État de circulation RRN + métropoles (débit/occupation, DATEX II), **milliers de mesures toutes les 1–6 min** | **Réel** |
 | Météo | API **Open-Meteo** | Réel (temps réel) |
 
-Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min) : c'est elle qui justifie un bus de messages, indépendamment de son usage (ou non) comme feature du modèle de gravité (testé et écarté, cf. CDC §13.6). Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
+Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min). Son ingestion temps réel a une **justification opérationnelle propre, indépendante du modèle de gravité** : afficher l'état de circulation aux opérateurs de régulation pour évaluer le temps de trajet et optimiser le choix d'itinéraire des secours — un cas d'usage distinct du scoring de gravité (testé comme feature du modèle et écarté, gain prédictif nul, cf. CDC §13.6). C'est cette valeur opérationnelle propre, et non le seul besoin du modèle IA, qui justifie le bus de messages à ce débit : le trafic ne serait pas retiré du pipeline même si aucun modèle ne l'utilisait jamais en feature. Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
 
 > **Bulletins d'incidents (texte)** — retirés du périmètre (source réelle non identifiée, cf. CDC §13.6). Aucun flux non structuré n'alimente donc le pipeline à ce stade ; la variété du dataset repose sur structuré + semi-structuré uniquement.
 
@@ -115,7 +115,7 @@ Le **flux haute fréquence** du système est la **donnée de trafic capteur** (r
 
 Chaque brique est justifiée au regard des contraintes du projet.
 
-**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence**, les données de trafic capteur (milliers de mesures/min) ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
+**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence**, les données de trafic capteur (milliers de mesures/min), utile opérationnellement (routage des secours) indépendamment de son usage — ou non — comme feature du modèle IA ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
@@ -129,9 +129,9 @@ Chaque brique est justifiée au regard des contraintes du projet.
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II, utile à l'affichage opérationnel du trafic pour le routage des secours) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
-| **IaC** | Terraform (LocalStack → AWS) | IaC réelle gratuite via LocalStack, cible AWS documentée | — |
+| **IaC** | Terraform (LocalStack → AWS) | Même code IaC pour LocalStack et AWS (bascule par endpoint/identifiants) : déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle ; cible AWS documentée | — |
 
 ### Note — démonstration Spark (optionnelle)
 Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
@@ -260,7 +260,7 @@ erDiagram
 - **Docker Compose** : MinIO, PostgreSQL, Airflow, MLflow, Redis, Redpanda, FastAPI, Prometheus, Grafana.
 
 ### 6.2 Prod (cible) déployée via Terraform
-- **LocalStack** : `terraform apply` réel et gratuit émulant AWS (S3, IAM, etc.) → IaC + vidéo de prod.
+- **LocalStack** : `terraform apply` réel et gratuit du même code IaC qu'AWS (S3, IAM, etc.), émulant fidèlement l'API AWS → prouve l'exécutabilité de l'infrastructure, pas une charge de production réelle (cf. §2.1 pour la portée exacte).
 - **Architecture cible AWS** documentée : S3, RDS PostgreSQL, **EKS (Kubernetes)** pour Airflow + serving, MSK (Kafka), ElastiCache, ECR.
 - **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale possible via **k3s/kind**.
 
@@ -333,9 +333,10 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 1. **Polars/DuckDB plutôt que Spark** : volume en mémoire → éviter la sur-ingénierie ; Spark gardé comme voie de montée en charge.
 2. **Hybride lac + PostgreSQL** : Medallion pour le narratif + schéma en étoile relationnel pour la modélisation attendue.
-3. **LocalStack pour Terraform** : IaC et déploiement « production » réels et gratuits, sans accès AWS payant.
+3. **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants uniquement), déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure — sans simuler une charge de production réelle, hors de portée sans budget cloud payant.
 4. **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
 5. **Anti-leakage strict** : features limitées aux informations connues au signalement.
+6. **Trafic ingéré en temps réel pour une valeur opérationnelle propre** (aide au routage des secours), indépendamment de son usage — écarté — comme feature du modèle de gravité : le bus de messages ne repose donc pas artificiellement sur un besoin du modèle IA.
 
 ---
 
