@@ -1,0 +1,28 @@
+# Configuration Prometheus — surveillance de l'infrastructure de développement.
+#
+# Les cibles applicatives (API de prédiction) exposeront leurs métriques sur /metrics ;
+# la cible `gravia-api` reste donc déclarée même avant que le service n'existe, Prometheus
+# la signale simplement comme `down` tant qu'elle n'écoute pas.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: dev
+    projet: gravia
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # API de prédiction (ml/serving) — latence, taux d'erreur, volume de prédictions.
+  - job_name: gravia-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+
+  # Redpanda expose ses métriques au format Prometheus nativement.
+  - job_name: redpanda
+    static_configs:
+      - targets: ["redpanda:9644"]

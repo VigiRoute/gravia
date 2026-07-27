@@ -1,0 +1,32 @@
+# Normalisation des fins de ligne.
+#
+# Le développement se fait sous Windows (CRLF) mais une partie des fichiers est exécutée
+# dans des conteneurs Linux. Un script shell en CRLF y échoue avec `bad interpreter: No
+# such file or directory` (le `\r` est interprété comme faisant partie du chemin du shell).
+# On force donc LF sur tout ce qui est lu par un conteneur ou un outil POSIX.
+
+* text=auto
+
+# Scripts et configuration exécutés dans des conteneurs Linux : LF obligatoire.
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
+Makefile        text eol=lf
+
+# Code et documentation : LF pour rester cohérent entre postes et avec la CI Linux.
+*.py            text eol=lf
+*.md            text eol=lf
+*.toml          text eol=lf
+*.sql           text eol=lf
+
+# Binaires : jamais de conversion.
+*.docx          binary
+*.pptx          binary
+*.xlsx          binary
+*.pdf           binary
+*.png           binary
+*.jpg           binary
+*.parquet       binary
+*.zip           binary
