@@ -1,0 +1,11 @@
+# Déclare Prometheus comme source de données par défaut au démarrage de Grafana,
+# pour éviter une configuration manuelle à chaque recréation du conteneur.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
