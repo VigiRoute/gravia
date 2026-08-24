@@ -1,0 +1,387 @@
+"""Couche Silver : nettoyage, typage strict et pseudonymisation des tables BAAC.
+
+Principe de la couche : chaque table Bronze (caracteristiques, lieux, vehicules, usagers) est
+traitée **indépendamment**, sans jointure inter-table. La jointure (`Num_Acc`, `id_vehicule`),
+l'agrégation du label `is_grave` et le schéma en étoile relèvent de la couche Gold (cf.
+docs/Architecture_GRAVIA.md §5 — décision actée le 2026-08-24). Les identifiants (`Num_Acc`,
+`id_vehicule`, `id_usager`, `Num_Veh`) restent en `Utf8` : ce sont des clés de jointure, pas des
+quantités, et un cast numérique risquerait de tronquer un zéro de tête ou de déborder.
+
+Les codes appliqués ici sont vérifiés contre le dictionnaire officiel ONISR (cf. CLAUDE.md,
+section « Documentation de référence ») plutôt que devinés.
+
+Pseudonymisation (cf. CLAUDE.md, données personnelles et sensibles ; docs/AIPD_GRAVIA.md §4.2) :
+    - Géolocalisation : `lat`/`long` sont supprimées. La localisation reste disponible via
+      `dep`/`com`, déjà natifs BAAC à la granularité commune. Un simple arrondi de coordonnées a
+      été écarté : il resterait de la pseudonymisation réversible au sens RGPD (la donnée reste
+      personnelle), et ne garantit pas la non-individualisation dans les communes peu
+      accidentogènes (une coordonnée arrondie + date + commune peut rester le seul accident du
+      jour dans sa cellule). L'agrégation à la commune correspond au terme employé par l'AIPD.
+    - Âge : `an_nais` est remplacé par une tranche d'âge (`tranche_age`), calculée à partir de
+      `_millesime` (année de l'accident, déjà présente en provenance Bronze — cf. `gravia.bronze`)
+      plutôt que via `caracteristiques.an`, ce qui évite une jointure inter-table pour une simple
+      date. Un âge manquant, négatif ou supérieur à 110 ans (saisie aberrante) tombe dans la
+      catégorie "Inconnu" plutôt que de fausser une tranche.
+
+Non traité à ce stade, faute de documentation vérifiée :
+    - `hrmn` (heure/minutes) reste en `Utf8` ici : le dictionnaire ONISR ne précise pas son
+      format. Vérifié empiriquement `"HH:MM"` sur les 5 millésimes 2019-2023 lors de
+      l'implémentation de la couche Gold (cf. `gravia.gold`, qui en extrait `heure`) — non
+      re-typé en Silver pour ne pas dupliquer cette logique entre les deux couches.
+
+Qualité des données : chaque fichier BAAC source contient une ligne finale entièrement vide
+(artefact d'export, `Num_Acc` et toutes les autres colonnes à `null` après lecture Bronze) —
+constatée sur 17 des 20 combinaisons table/millésime 2019-2023. Filtrée en tout début de
+`clean_table` (`Num_Acc` non nul), avant tout traitement spécifique à une table.
+
+Utilisation :
+    python -m gravia.silver                  # traite 2019-2023 et téléverse sur MinIO
+    python -m gravia.silver --years 2023     # un seul millésime
+    python -m gravia.silver --no-upload      # production locale seulement
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+import polars as pl
+
+from gravia.bronze import DEFAULT_YEARS, bronze_path
+from gravia.config import Settings, get_settings
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+#: Colonnes entières par table, castées avec `strict=False` pour absorber les sentinelles
+#: `" -1"` et les cellules non renseignées (cf. CLAUDE.md, pièges de schéma BAAC).
+CARACTERISTIQUES_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
+    ("jour", pl.Int8),
+    ("mois", pl.Int8),
+    ("an", pl.Int32),
+    ("lum", pl.Int8),
+    ("agg", pl.Int8),
+    ("int", pl.Int8),
+    ("atm", pl.Int8),
+    ("col", pl.Int8),
+)
+
+LIEUX_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
+    ("catr", pl.Int8),
+    ("circ", pl.Int8),
+    ("nbv", pl.Int16),
+    ("vosp", pl.Int8),
+    ("prof", pl.Int8),
+    ("pr", pl.Int32),
+    ("pr1", pl.Int32),
+    ("plan", pl.Int8),
+    ("surf", pl.Int8),
+    ("infra", pl.Int8),
+    ("situ", pl.Int8),
+    ("vma", pl.Int16),
+)
+
+#: Largeurs en mètres : certains millésimes utilisent la virgule décimale française. Traité à
+#: part de `LIEUX_INT_COLUMNS` car il faut normaliser le séparateur avant le cast.
+LIEUX_FLOAT_COLUMNS: tuple[str, ...] = ("lartpc", "larrout")
+
+VEHICULES_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
+    ("senc", pl.Int8),
+    ("catv", pl.Int8),
+    ("obs", pl.Int8),
+    ("obsm", pl.Int8),
+    ("choc", pl.Int8),
+    ("manv", pl.Int8),
+    ("motor", pl.Int8),
+    ("occutc", pl.Int16),
+)
+
+#: `actp` (action du piéton) mélange des codes numériques et les lettres `A`/`B` (cf.
+#: dictionnaire ONISR) : elle reste volontairement en `Utf8`, absente de cette liste.
+USAGERS_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
+    ("place", pl.Int8),
+    ("catu", pl.Int8),
+    ("grav", pl.Int8),
+    ("sexe", pl.Int8),
+    ("trajet", pl.Int8),
+    ("secu1", pl.Int8),
+    ("secu2", pl.Int8),
+    ("secu3", pl.Int8),
+    ("locp", pl.Int8),
+    ("etatp", pl.Int8),
+)
+
+#: Bornes supérieures des tranches d'âge (`age <= borne`), évaluées dans l'ordre. Au-delà de la
+#: dernière borne, l'usager tombe dans `AGE_BUCKET_SENIOR`.
+AGE_BUCKETS: tuple[tuple[int, str], ...] = (
+    (17, "0-17"),
+    (24, "18-24"),
+    (34, "25-34"),
+    (49, "35-49"),
+    (64, "50-64"),
+)
+AGE_BUCKET_SENIOR = "65+"
+AGE_BUCKET_UNKNOWN = "Inconnu"
+#: Age au-delà duquel une valeur est jugée aberrante (saisie erronée) plutôt que réelle.
+AGE_IMPLAUSIBLE_ABOVE = 110
+
+#: Colonnes de géolocalisation précise, supprimées par pseudonymisation (cf. docstring module).
+CARACTERISTIQUES_DROPPED_COLUMNS: tuple[str, ...] = ("lat", "long")
+
+
+class MissingBronzeFileError(FileNotFoundError):
+    """Le Parquet Bronze attendu n'existe pas : la couche Bronze n'a pas encore été exécutée."""
+
+
+def cast_columns(df: pl.DataFrame, columns: Sequence[tuple[str, pl.DataType]]) -> pl.DataFrame:
+    """Caste une liste de colonnes vers leur type cible, en absorbant les valeurs invalides.
+
+    Args:
+        df: Table à typer.
+        columns: Association nom de colonne -> type Polars cible.
+
+    Returns:
+        La table avec les colonnes castées. Une valeur qui ne peut pas être convertie (ex :
+        sentinelle `" -1"` mal formée, cellule non numérique) devient `null` plutôt que de lever
+        une exception, car `strict=False` reflète la réalité d'un fichier source non contrôlé.
+    """
+    return df.with_columns([pl.col(name).cast(dtype, strict=False) for name, dtype in columns])
+
+
+def clean_caracteristiques(df: pl.DataFrame) -> pl.DataFrame:
+    """Nettoie la rubrique CARACTERISTIQUES : typage strict et suppression de la géoloc précise.
+
+    Args:
+        df: Table Bronze `caracteristiques` d'un millésime.
+
+    Returns:
+        La table typée, sans `lat`/`long` (pseudonymisation — cf. docstring module).
+    """
+    df = cast_columns(df, CARACTERISTIQUES_INT_COLUMNS)
+    return df.drop(CARACTERISTIQUES_DROPPED_COLUMNS)
+
+
+def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
+    """Nettoie la rubrique LIEUX : typage strict, largeurs décimales, dédoublonnage.
+
+    Un accident peut apparaître sur plusieurs lignes dans `lieux` (cf. CLAUDE.md, pièges de
+    schéma BAAC) alors que la rubrique ne décrit qu'un seul lieu principal par accident. Faute de
+    critère documenté pour départager les doublons, la première ligne rencontrée est conservée ;
+    l'ordre est déterministe (celui du fichier source) mais arbitraire quant au contenu.
+
+    Args:
+        df: Table Bronze `lieux` d'un millésime.
+
+    Returns:
+        La table typée, une ligne par `Num_Acc`.
+    """
+    df = cast_columns(df, LIEUX_INT_COLUMNS)
+    df = df.with_columns(
+        [
+            pl.col(col).str.replace(",", ".", literal=True).cast(pl.Float64, strict=False)
+            for col in LIEUX_FLOAT_COLUMNS
+        ]
+    )
+    return df.unique(subset=["Num_Acc"], keep="first")
+
+
+def clean_vehicules(df: pl.DataFrame) -> pl.DataFrame:
+    """Nettoie la rubrique VEHICULES : typage strict des colonnes catégorielles.
+
+    Args:
+        df: Table Bronze `vehicules` d'un millésime.
+
+    Returns:
+        La table typée.
+    """
+    return cast_columns(df, VEHICULES_INT_COLUMNS)
+
+
+def add_age_bucket(df: pl.DataFrame) -> pl.DataFrame:
+    """Remplace `an_nais` par une tranche d'âge, sans jointure vers `caracteristiques`.
+
+    L'âge est calculé à partir de `_millesime` (année de l'accident, ajoutée en provenance dans
+    `gravia.bronze.add_provenance` pour les 4 tables) plutôt que de `caracteristiques.an`, ce qui
+    garde le traitement de `usagers` autonome — cohérent avec le principe « pas de jointure
+    inter-table en Silver ».
+
+    Args:
+        df: Table Bronze `usagers` d'un millésime, déjà munie de `_millesime`.
+
+    Returns:
+        La table avec une colonne `tranche_age` et sans `an_nais`.
+    """
+    age = pl.col("_millesime") - pl.col("an_nais").cast(pl.Int32, strict=False)
+
+    bucket = pl.when(age.is_null() | (age < 0) | (age > AGE_IMPLAUSIBLE_ABOVE)).then(
+        pl.lit(AGE_BUCKET_UNKNOWN)
+    )
+    for upper_bound, label in AGE_BUCKETS:
+        bucket = bucket.when(age <= upper_bound).then(pl.lit(label))
+    bucket = bucket.otherwise(pl.lit(AGE_BUCKET_SENIOR))
+
+    return df.with_columns(bucket.alias("tranche_age")).drop("an_nais")
+
+
+def clean_usagers(df: pl.DataFrame) -> pl.DataFrame:
+    """Nettoie la rubrique USAGERS : typage strict et pseudonymisation de l'âge.
+
+    Args:
+        df: Table Bronze `usagers` d'un millésime.
+
+    Returns:
+        La table typée, avec `tranche_age` à la place de `an_nais`.
+    """
+    df = cast_columns(df, USAGERS_INT_COLUMNS)
+    return add_age_bucket(df)
+
+
+CLEANERS = {
+    "caracteristiques": clean_caracteristiques,
+    "lieux": clean_lieux,
+    "vehicules": clean_vehicules,
+    "usagers": clean_usagers,
+}
+
+
+def silver_path(table: str, year: int, settings: Settings) -> Path:
+    """Chemin local du Parquet Silver d'une table et d'un millésime.
+
+    Args:
+        table: Nom logique de la table.
+        year: Millésime.
+        settings: Configuration.
+
+    Returns:
+        Le chemin cible.
+    """
+    return settings.paths.silver / "baac" / table / f"millesime={year}" / "part-0.parquet"
+
+
+def object_key(table: str, year: int) -> str:
+    """Clé de l'objet Silver dans le stockage objet.
+
+    Args:
+        table: Nom logique de la table.
+        year: Millésime.
+
+    Returns:
+        La clé S3, sans le nom du bucket.
+    """
+    return f"silver/baac/{table}/millesime={year}/part-0.parquet"
+
+
+def clean_table(table: str, year: int, settings: Settings) -> Path:
+    """Nettoie une table d'un millésime depuis son Parquet Bronze et écrit le Parquet Silver.
+
+    Args:
+        table: Nom logique de la table (clé de `CLEANERS`).
+        year: Millésime à traiter.
+        settings: Configuration (chemins source et destination).
+
+    Returns:
+        Le chemin du fichier Parquet écrit.
+
+    Raises:
+        MissingBronzeFileError: Si le Parquet Bronze correspondant n'existe pas encore.
+    """
+    source = bronze_path(table, year, settings)
+    if not source.exists():
+        raise MissingBronzeFileError(
+            f"Bronze introuvable pour '{table}' {year} ({source}). "
+            f"Lancer 'python -m gravia.bronze --years {year}' au préalable."
+        )
+
+    df = pl.read_parquet(source)
+
+    n_before = df.height
+    df = df.filter(pl.col("Num_Acc").is_not_null())
+    dropped = n_before - df.height
+    if dropped:
+        print(
+            f"  [avertissement] {table} {year} : {dropped} ligne(s) entièrement vide(s) écartée(s)."
+        )
+
+    df = CLEANERS[table](df)
+
+    destination = silver_path(table, year, settings)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    df.write_parquet(destination, compression="snappy")
+
+    print(f"  {table:16s} {year}  {df.height:>7} lignes  ->  {destination.name}")
+    return destination
+
+
+def upload(paths: dict[str, Path], settings: Settings) -> None:
+    """Téléverse les Parquet Silver produits vers le stockage objet.
+
+    Args:
+        paths: Association clé d'objet -> fichier local à téléverser.
+        settings: Configuration du stockage objet.
+    """
+    import boto3
+
+    store = settings.object_store
+    client = boto3.client(
+        "s3",
+        endpoint_url=store.endpoint or None,
+        aws_access_key_id=store.access_key,
+        aws_secret_access_key=store.secret_key,
+        region_name=store.region,
+    )
+
+    for key, local_path in paths.items():
+        client.upload_file(str(local_path), store.bucket, key)
+
+    print(f"\n{len(paths)} objets téléversés vers s3://{store.bucket}/silver/baac/")
+
+
+def clean(years: tuple[int, ...], settings: Settings, do_upload: bool = True) -> dict[str, Path]:
+    """Nettoie l'ensemble des tables BAAC pour les millésimes demandés.
+
+    Args:
+        years: Millésimes à traiter.
+        settings: Configuration.
+        do_upload: Téléverser vers le stockage objet après écriture locale.
+
+    Returns:
+        Association clé d'objet -> fichier local produit.
+    """
+    produced: dict[str, Path] = {}
+
+    for year in years:
+        print(f"\nMillésime {year}")
+        for table in CLEANERS:
+            path = clean_table(table, year, settings)
+            produced[object_key(table, year)] = path
+
+    if do_upload:
+        upload(produced, settings)
+
+    return produced
+
+
+def main() -> None:
+    """Point d'entrée en ligne de commande."""
+    parser = argparse.ArgumentParser(description="Nettoyage Silver des millésimes BAAC.")
+    parser.add_argument(
+        "--years",
+        type=int,
+        nargs="+",
+        default=list(DEFAULT_YEARS),
+        help=f"Millésimes à traiter (défaut : {' '.join(map(str, DEFAULT_YEARS))}).",
+    )
+    parser.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Produire les Parquet localement sans téléverser vers le stockage objet.",
+    )
+    args = parser.parse_args()
+
+    produced = clean(tuple(args.years), get_settings(), do_upload=not args.no_upload)
+    print(f"\nSilver : {len(produced)} tables traitées.")
+
+
+if __name__ == "__main__":
+    main()

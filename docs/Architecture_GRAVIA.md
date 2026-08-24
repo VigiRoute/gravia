@@ -249,8 +249,8 @@ erDiagram
 | Couche | Contenu | Format / stockage | Transformations |
 |---|---|---|---|
 | **Bronze** | Données brutes telles qu'ingérées | Parquet (MinIO/S3) | Aucune (traçabilité de la source) |
-| **Silver** | Nettoyé, typé, **pseudonymisé**, enrichi (météo/géo) | Parquet (MinIO/S3) | Dédoublonnage, gestion des manquants, jointures, encodage, agrégation géographique |
-| **Gold** | Features model-ready, schéma en étoile, label | PostgreSQL | Construction faits/dimensions, label `is_grave`, features |
+| **Silver** | Nettoyé, typé, **pseudonymisé**, une table par entité BAAC (caractéristiques/lieux/véhicules/usagers) | Parquet (MinIO/S3) | Dédoublonnage, typage strict, gestion des manquants, agrégation géographique (pseudonymisation) — **pas de jointure inter-table** |
+| **Gold** | Features model-ready, schéma en étoile, label | PostgreSQL | Jointure des 4 tables Silver (`Num_Acc`, `id_vehicule`), construction faits/dimensions, label `is_grave`, features |
 
 ---
 

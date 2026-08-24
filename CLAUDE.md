@@ -153,6 +153,12 @@ Calibrer des seuils par zone répare le recall local mais dégrade le F1 macro g
 - Les fichiers caractéristiques 2021 et 2022 sont nommés **`carcteristiques`** (sans le « a ») par le producteur lui-même.
 - `jour` / `mois` sont zéro-paddés certaines années (`"05"`) et pas d'autres (`"5"`) → toujours caster en `Int64`.
 - `grav`, `catv`, `catu` contiennent des valeurs `" -1"` → caster avec `strict=False`.
+- Les valeurs manquantes s'écrivent de **trois façons différentes** selon la variable : cellule vide, `0`, ou point `.` (pas seulement `-1`) — cf. dictionnaire ONISR, section « Documentation de référence » ci-dessous.
+- L'indicateur « blessé hospitalisé » (`grav = 3`, utilisé dans `is_grave`) **n'est plus labellisé par la statistique publique depuis 2019** et n'est pas comparable avant/après 2018 (changement de process de saisie des forces de l'ordre). À garder en tête pour la fiabilité de la cible sur longue période.
+- La colonne `id_usager` (rubrique usagers) est **absente des fichiers 2019 et 2020**, présente à partir de 2021 seulement (constaté sur les fichiers réels) — cohérent avec l'ajout des usagers en fuite documenté par l'ONISR à partir de cette année. Ne pas supposer sa présence sans vérifier le millésime.
+- Les noms de colonnes ne respectent pas toujours la casse du dictionnaire ONISR : `an_nais` (rubrique usagers) est en minuscules dans les fichiers réels alors que le PDF l'écrit `An_nais`. Vérifier la casse réelle plutôt que de la recopier du PDF.
+- Chaque fichier BAAC source contient une **ligne finale entièrement vide** (artefact d'export) : `Num_Acc` et toutes les autres colonnes valent `null` après lecture Bronze. Constatée sur 17 des 20 combinaisons table/millésime 2019-2023. Filtrée en Silver (`Num_Acc` non nul), pas en Bronze (fidélité à la source).
+- `hrmn` (caractéristiques) est au format `"HH:MM"` — vérifié empiriquement sur 2019-2023, non documenté par le dictionnaire ONISR.
 - Le champ `voie` (lieux) est du **texte libre très bruité** (`"AUTOROUTE A 63"`, `"Echangeur 16.1 (Rd Pt autoroute A1)"`) : toute extraction de numéro de route doit être conservatrice.
 - Un accident a **plusieurs lignes** dans `lieux` → dédoublonner sur `Num_Acc`.
 
@@ -225,9 +231,11 @@ Ne jamais committer de secrets. En dev, utiliser `.env` (ignoré par `.gitignore
 
 ## Documentation de référence
 
+- [Avancement du projet](docs/AVANCEMENT_GRAVIA.md) — **à consulter en premier** pour reprendre le contexte dans un nouveau chat (où on en est, ce qui est fait/pas fait, prochaine étape)
 - [Cahier des charges](docs/CDC_GRAVIA.md)
 - [Architecture de données](docs/Architecture_GRAVIA.md)
 - [Plan de gouvernance](docs/Gouvernance_GRAVIA.md)
 - [AIPD](docs/AIPD_GRAVIA.md)
 - [Référentiel RNCP](docs/referentiel.md)
 - [Dataset BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/)
+- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) — dictionnaire officiel des 4 tables et de leurs variables/codes, source de vérité pour tout choix de typage en Silver/Gold (à consulter avant de deviner un code)
