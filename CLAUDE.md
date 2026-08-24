@@ -213,6 +213,10 @@ make validate-data    # Great Expectations
 >
 > Le Terraform vit dans `gravia-mlops`, pas ici : il n'y a donc **pas** de cible `tf-localstack` dans ce Makefile.
 
+## Workflow Git
+
+⚠️ **Ne jamais merger une branche depuis le terminal** (pas de `git merge`, `git checkout main && git merge ...`, ni de merge via `gh pr merge`). L'utilisateur veut merger lui-même depuis l'interface GitHub (créer/merger la PR sur github.com). Créer la PR (`gh pr create`) reste possible sur demande, mais le merge proprement dit est une action manuelle de l'utilisateur sur le site.
+
 ## Environnement de développement — pièges connus
 
 - **Console Windows en cp1252** : tout script qui affiche des caractères non-ASCII (tableaux Polars, emojis MLflow) plante avec `UnicodeEncodeError`. Ajouter `sys.stdout.reconfigure(encoding="utf-8")` en tête de script, ou lancer avec `PYTHONIOENCODING=utf-8`.
