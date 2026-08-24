@@ -6,14 +6,15 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-24 — couche Gold implémentée et chargée dans PostgreSQL réel.
+**Dernière mise à jour :** 2026-08-24 — suite de tests (26 tests, 90 % de couverture) + correctif
+de parsing découvert en écrivant les tests.
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
-**Bronze → Silver → Gold est maintenant complet** et chargé en base réelle (273 226 accidents,
-2019-2023) ; aucun code ML (features, entraînement, serving) n'existe encore hors notebooks
-d'exploration.
+**Bronze → Silver → Gold est complet, testé (90 % de couverture) et chargé en base réelle**
+(273 226 accidents, 2019-2023) ; aucun code ML (features, entraînement, serving) n'existe encore
+hors notebooks d'exploration.
 
 ## État par composant
 
@@ -74,13 +75,26 @@ d'exploration.
   enrichissement neuf (jours fériés France métropolitaine, `dateutil.easter`, dépendance figée
   ajoutée), non validé en amont contrairement au reste. Chargé et vérifié sur les 5 millésimes
   réels dans le PostgreSQL du Docker Compose dev : **273 226 accidents** (identique au chiffre du
-  protocole baseline CLAUDE.md), taux `is_grave` 36,09 % national (cohérent avec le ~36 % déjà
-  documenté), zéro clé étrangère orpheline, rechargement testé idempotent (mêmes comptes après
-  double exécution).
+  protocole baseline CLAUDE.md), taux `is_grave` **35,76 % national pondéré sur 2019-2023**
+  (34,60 % à 36,09 % selon le millésime — cohérent avec le ~36 % déjà documenté ; la valeur
+  36,09 % citée dans une version précédente de ce fichier était en réalité le taux 2023 seul, pas
+  la moyenne pondérée des 5 ans), zéro clé étrangère orpheline, rechargement testé idempotent.
   **Bug trouvé et corrigé en testant Gold** : chaque fichier BAAC source contient une ligne
   finale entièrement vide (artefact d'export) que Silver ne filtrait pas encore — corrigé dans
   `silver.py` (`Num_Acc` non nul), Silver régénéré, Bronze inchangé (fidélité à la source).
   Documenté dans CLAUDE.md, pièges de schéma BAAC.
+- **Suite de tests** (`tests/unit/test_bronze.py`, `test_silver.py`, `test_gold.py`,
+  `tests/integration/test_gold_postgres.py`) — 26 tests, **90 % de couverture** (seuil CLAUDE.md :
+  80 %). Les tests unitaires n'ont besoin d'aucune infra (fichiers temporaires uniquement) ; le
+  test d'intégration Gold est ignoré (`pytest.skip`) si PostgreSQL n'est pas joignable, et nettoie
+  ses propres données de test (millésime factice 1900) pour ne pas polluer la base dev partagée.
+  **Bug trouvé en écrivant les tests, corrigé** : `cast_columns` castait `" -1"` (sentinelle BAAC
+  avec espace de tête, présente sur la quasi-totalité des colonnes codées, pas seulement
+  `grav`/`catv`/`catu`) en `null` plutôt qu'en `-1` — `str.strip_chars()` manquant avant le cast.
+  Silver et Gold régénérés après correction ; les totaux `is_grave` sont restés identiques (la
+  distinction -1/null n'affectait pas ce calcul précis), mais la distinction « valeur explicitement
+  codée non-renseigné » vs « valeur réellement absente » est désormais correcte pour tout usage
+  futur (Great Expectations, ml/features). Documenté dans CLAUDE.md.
 
 ### 🚧 Pas commencé
 
@@ -95,9 +109,6 @@ d'exploration.
 - **Serving FastAPI** `/v1/predict-severity` (`ml/serving/` — vide).
 - **Monitoring de dérive Evidently** (`ml/monitoring/` — vide).
 - **Great Expectations** (`data/expectations/` à vérifier/peupler).
-- **Tests** — `tests/unit/` et `tests/integration/` existent mais sont vides (`.gitkeep`
-  seulement). Aucun test automatisé sur `bronze.py`/`silver.py`/`gold.py` à ce jour (vérifiés
-  manuellement sur données réelles à chaque étape, pas par une suite automatisée).
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
   suivi.
 
@@ -107,9 +118,7 @@ d'exploration.
 colonnes catégorielles pour le modèle, split train (2019-2021) / validation (2022) / test (2023)
 anti-leakage, en cohérence avec le protocole déjà validé dans `notebooks/eda_baseline_baac.py` et
 `notebooks/eval_enrichissement_vs_seuil.py`. Alternative possible : DAG Airflow pour orchestrer
-Bronze→Silver→Gold avant de passer au ML, selon la priorité voulue. Vérifier au préalable l'état
-réel de `tests/` et `data/expectations/` — ce fichier peut être légèrement en retard sur le
-dépôt.
+Bronze→Silver→Gold avant de passer au ML, selon la priorité voulue.
 
 ## Comment relancer le contexte dans un nouveau chat
 

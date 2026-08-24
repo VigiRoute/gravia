@@ -137,16 +137,26 @@ class MissingBronzeFileError(FileNotFoundError):
 def cast_columns(df: pl.DataFrame, columns: Sequence[tuple[str, pl.DataType]]) -> pl.DataFrame:
     """Caste une liste de colonnes vers leur type cible, en absorbant les valeurs invalides.
 
+    La sentinelle `" -1"` (cf. CLAUDE.md, pièges de schéma BAAC) est précédée d'une espace dans
+    la quasi-totalité des colonnes codées du BAAC (constaté au-delà des seules `grav`/`catv`/
+    `catu` citées par le CLAUDE.md : `lum`, `int`, `atm`, `col`, `circ`, `vosp`, `prof`, `plan`,
+    `surf`, `infra`, `situ`, `sexe`, `trajet`, `locp`…). Sans `str.strip_chars()` au préalable,
+    `" -1".cast(Int8, strict=False)` renvoie `null` plutôt que `-1` : la valeur explicitement
+    codée « non renseigné » par le BAAC se confondrait silencieusement avec une valeur réellement
+    absente de la source, deux cas que la traçabilité gouvernance doit pouvoir distinguer.
+
     Args:
         df: Table à typer.
         columns: Association nom de colonne -> type Polars cible.
 
     Returns:
-        La table avec les colonnes castées. Une valeur qui ne peut pas être convertie (ex :
-        sentinelle `" -1"` mal formée, cellule non numérique) devient `null` plutôt que de lever
-        une exception, car `strict=False` reflète la réalité d'un fichier source non contrôlé.
+        La table avec les colonnes castées. Seule une valeur qui ne peut pas être convertie même
+        après nettoyage des espaces (cellule non numérique, vide) devient `null` ; `strict=False`
+        reflète la réalité d'un fichier source non contrôlé pour ces cas-là uniquement.
     """
-    return df.with_columns([pl.col(name).cast(dtype, strict=False) for name, dtype in columns])
+    return df.with_columns(
+        [pl.col(name).str.strip_chars().cast(dtype, strict=False) for name, dtype in columns]
+    )
 
 
 def clean_caracteristiques(df: pl.DataFrame) -> pl.DataFrame:
@@ -179,7 +189,10 @@ def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
     df = cast_columns(df, LIEUX_INT_COLUMNS)
     df = df.with_columns(
         [
-            pl.col(col).str.replace(",", ".", literal=True).cast(pl.Float64, strict=False)
+            pl.col(col)
+            .str.strip_chars()
+            .str.replace(",", ".", literal=True)
+            .cast(pl.Float64, strict=False)
             for col in LIEUX_FLOAT_COLUMNS
         ]
     )
@@ -212,7 +225,7 @@ def add_age_bucket(df: pl.DataFrame) -> pl.DataFrame:
     Returns:
         La table avec une colonne `tranche_age` et sans `an_nais`.
     """
-    age = pl.col("_millesime") - pl.col("an_nais").cast(pl.Int32, strict=False)
+    age = pl.col("_millesime") - pl.col("an_nais").str.strip_chars().cast(pl.Int32, strict=False)
 
     bucket = pl.when(age.is_null() | (age < 0) | (age > AGE_IMPLAUSIBLE_ABOVE)).then(
         pl.lit(AGE_BUCKET_UNKNOWN)
