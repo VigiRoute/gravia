@@ -15,7 +15,10 @@
 name: gravia
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:3.3.0
+  build:
+    context: ..
+    dockerfile: infra/airflow/Dockerfile
+  image: gravia-airflow:3.3.0-python3.12
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -24,6 +27,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-gravia}:${POSTGRES_PASSWORD:-gravia}@postgres:5432/airflow
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-dev-secret-key-change-in-prod}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-dev-jwt-secret-change-in-prod}
+    # PYTHONPATH avant le site-packages installé au build : les DAGs importent le code monté en
+    # volume (../src), pas la copie figée au build de l'image (cf. infra/airflow/Dockerfile).
+    PYTHONPATH: /opt/airflow/src
     # Les tâches accèdent au lac et au tracking via les mêmes endpoints que le code local.
     MLFLOW_TRACKING_URI: http://mlflow:5000
     MINIO_ENDPOINT: http://minio:9000
