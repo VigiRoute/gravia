@@ -1,0 +1,14 @@
+# Contexte de build Docker — exclut ce qu'aucune image du projet n'a besoin de copier.
+# infra/airflow/Dockerfile (context: ..) ne lit que pyproject.toml, mais ce fichier vaut pour
+# toute future image construite depuis la racine du dépôt (serving, etc.).
+
+.venv/
+data/
+.git/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
