@@ -6,8 +6,8 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-24 — DAG Airflow orchestrant Bronze→Silver→Gold, testé de
-bout en bout dans la stack dev réelle.
+**Dernière mise à jour :** 2026-08-24 — `gold_dim_lieu`/`gold_dim_conditions` étendus pour
+couvrir toutes les features du baseline validé, en préparation de `ml/features`.
 
 ## En une phrase
 
@@ -83,6 +83,18 @@ serving) n'existe encore hors notebooks d'exploration.
   finale entièrement vide (artefact d'export) que Silver ne filtrait pas encore — corrigé dans
   `silver.py` (`Num_Acc` non nul), Silver régénéré, Bronze inchangé (fidélité à la source).
   Documenté dans CLAUDE.md, pièges de schéma BAAC.
+  **Écart structurel trouvé en préparant `ml/features`, corrigé** : `gold_dim_lieu` ne portait
+  que 4 attributs (`departement`/`agglomeration`/`categorie_route`/`vitesse_max`) — 8 attributs
+  utilisés par le baseline déjà validé manquaient (`circ`, `nbv`, `vosp`, `prof`, `plan`, `infra`,
+  `situ` côté lieu ; `int`/intersection côté caracteristiques), rendant Gold structurellement
+  incapable de le reproduire. Étendu à 12 attributs dans `gold_dim_lieu` (DDL + `gold.py` +
+  [Architecture_GRAVIA.md §4.2](Architecture_GRAVIA.md)), schéma recréé et rechargé sur les 5
+  millésimes réels : mêmes comptes qu'avant (273 226 accidents, 35,76 % `is_grave` — la
+  correction ajoute des features, ne change pas le label).
+  **Deuxième bug trouvé au passage** : `create_schema` découpait le DDL sur `;`, mais les
+  commentaires SQL du fichier contiennent eux-mêmes des `;` (ex. `-- -1 = non renseigné ;
+  lieux.circ`) — coupait en plein milieu d'une instruction. Corrigé pour découper sur `;` suivi
+  d'une fin de ligne, seul un vrai terminateur d'instruction dans ce fichier.
 - **Suite de tests** (`tests/unit/test_bronze.py`, `test_silver.py`, `test_gold.py`,
   `tests/integration/test_gold_postgres.py`) — 26 tests, **90 % de couverture** (seuil CLAUDE.md :
   80 %). Les tests unitaires n'ont besoin d'aucune infra (fichiers temporaires uniquement) ; le

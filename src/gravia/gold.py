@@ -18,6 +18,12 @@ schéma physique (`gold_fact_accident`, `gold_dim_date`, `gold_dim_lieu`, `gold_
     - `type_collision` est décodé en libellé texte (dictionnaire ONISR) plutôt que de garder le
       code brut `col`, pour correspondre au typage `string` du diagramme d'origine — les autres
       dimensions gardent des codes bruts (`int`), ce n'est donc pas systématique.
+    - `gold_dim_lieu` porte 8 attributs de plus que le diagramme d'origine (`intersection`,
+      `regime_circulation`, `nb_voies`, `voie_reservee`, `profil_route`, `trace_plan`,
+      `infrastructure`, `situation`) : le diagramme ne prévoyait que 4 attributs, insuffisant
+      pour reproduire le baseline déjà validé (`notebooks/eda_baseline_baac.py`), qui les utilise
+      tous. Trouvé en préparant `ml/features` — corrigé avant d'aller plus loin plutôt que de
+      construire les features sur un Gold structurellement incomplet.
 
 Construction du label : `is_grave` = au moins un usager avec `grav ∈ {2, 3}` (tué ou hospitalisé)
 rattaché à l'accident (cf. CLAUDE.md, définition de la cible ; CDC §3). Une absence totale
@@ -37,6 +43,7 @@ Utilisation :
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -132,11 +139,25 @@ DATE_DIM = DimensionSpec(
     conflict_columns=("jour", "heure"),
     insert_columns=("jour", "heure", "jour_semaine", "weekend", "mois", "jour_ferie"),
 )
+LIEU_DIM_COLUMNS = (
+    "departement",
+    "agglomeration",
+    "intersection",
+    "categorie_route",
+    "regime_circulation",
+    "nb_voies",
+    "voie_reservee",
+    "profil_route",
+    "trace_plan",
+    "vitesse_max",
+    "infrastructure",
+    "situation",
+)
 LIEU_DIM = DimensionSpec(
     table="gold_dim_lieu",
     key_column="lieu_key",
-    conflict_columns=("departement", "agglomeration", "categorie_route", "vitesse_max"),
-    insert_columns=("departement", "agglomeration", "categorie_route", "vitesse_max"),
+    conflict_columns=LIEU_DIM_COLUMNS,
+    insert_columns=LIEU_DIM_COLUMNS,
 )
 CONDITIONS_DIM = DimensionSpec(
     table="gold_dim_conditions",
@@ -258,8 +279,16 @@ def build_fact_frame(year: int, settings: Settings) -> pl.DataFrame:
         pl.col("_jour_date").is_in(holidays).alias("jour_ferie"),
         pl.col("dep").alias("departement"),
         (pl.col("agg").fill_null(-1) == 2).alias("agglomeration"),
+        pl.col("int").fill_null(-1).alias("intersection"),
         pl.col("catr").fill_null(-1).alias("categorie_route"),
+        pl.col("circ").fill_null(-1).alias("regime_circulation"),
+        pl.col("nbv").fill_null(-1).alias("nb_voies"),
+        pl.col("vosp").fill_null(-1).alias("voie_reservee"),
+        pl.col("prof").fill_null(-1).alias("profil_route"),
+        pl.col("plan").fill_null(-1).alias("trace_plan"),
         pl.col("vma").fill_null(-1).alias("vitesse_max"),
+        pl.col("infra").fill_null(-1).alias("infrastructure"),
+        pl.col("situ").fill_null(-1).alias("situation"),
         pl.col("lum").fill_null(-1).alias("luminosite"),
         pl.col("atm").fill_null(-1).alias("meteo"),
         pl.col("surf").fill_null(-1).alias("etat_surface"),
@@ -282,12 +311,16 @@ def build_fact_frame(year: int, settings: Settings) -> pl.DataFrame:
 def create_schema(engine: sa.Engine) -> None:
     """Crée le schéma en étoile Gold s'il n'existe pas déjà (DDL idempotent).
 
+    Découpe sur `;` suivi d'une fin de ligne, pas sur `;` seul : les commentaires SQL du fichier
+    contiennent eux-mêmes des points-virgules (ex. `-- -1 = non renseigné ; lieux.circ`), qui ne
+    terminent jamais une ligne. Un `str.split(";")` naïf coupait au milieu d'une instruction.
+
     Args:
         engine: Connexion SQLAlchemy vers PostgreSQL.
     """
     ddl = GOLD_SCHEMA_PATH.read_text(encoding="utf-8")
     with engine.begin() as conn:
-        for statement in filter(None, (s.strip() for s in ddl.split(";"))):
+        for statement in filter(None, (s.strip() for s in re.split(r";\s*\n", ddl))):
             conn.execute(sa.text(statement))
 
 

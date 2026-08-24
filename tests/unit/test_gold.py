@@ -114,6 +114,7 @@ def test_build_fact_frame_joins_tables_and_derives_dimensions(tmp_path: Path) ->
             "hrmn": ["08:30", "23:57"],
             "dep": ["75", "2A"],
             "agg": [2, 1],
+            "int": [1, -1],
             "lum": [1, 3],
             "atm": [1, -1],
             "col": [6, 99],  # 99 : code hors nomenclature ONISR
@@ -123,14 +124,38 @@ def test_build_fact_frame_joins_tables_and_derives_dimensions(tmp_path: Path) ->
             "mois": pl.Int8,
             "jour": pl.Int8,
             "agg": pl.Int8,
+            "int": pl.Int8,
             "lum": pl.Int8,
             "atm": pl.Int8,
             "col": pl.Int8,
         },
     )
     lieux = pl.DataFrame(
-        {"Num_Acc": ["1", "2"], "catr": [4, 1], "vma": [30, 130], "surf": [1, 2]},
-        schema_overrides={"catr": pl.Int8, "vma": pl.Int16, "surf": pl.Int8},
+        {
+            "Num_Acc": ["1", "2"],
+            "catr": [4, 1],
+            "circ": [2, -1],
+            "nbv": [2, 4],
+            "vosp": [0, -1],
+            "prof": [1, 1],
+            "plan": [1, 1],
+            "vma": [30, 130],
+            "surf": [1, 2],
+            "infra": [0, -1],
+            "situ": [1, 1],
+        },
+        schema_overrides={
+            "catr": pl.Int8,
+            "circ": pl.Int8,
+            "nbv": pl.Int16,
+            "vosp": pl.Int8,
+            "prof": pl.Int8,
+            "plan": pl.Int8,
+            "vma": pl.Int16,
+            "surf": pl.Int8,
+            "infra": pl.Int8,
+            "situ": pl.Int8,
+        },
     )
     vehicules = pl.DataFrame(
         {"Num_Acc": ["1", "1", "2"], "num_veh": ["A01", "B01", "A01"], "catv": [7, 33, 7]},
@@ -154,12 +179,17 @@ def test_build_fact_frame_joins_tables_and_derives_dimensions(tmp_path: Path) ->
     assert acc1["jour_ferie"].item() is True  # 1er janvier
     assert acc1["weekend"].item() is True  # 2023-01-01 est un dimanche
     assert acc1["heure"].item() == 8
+    assert acc1["intersection"].item() == 1
+    assert acc1["regime_circulation"].item() == 2
+    assert acc1["nb_voies"].item() == 2
 
     acc2 = frame.filter(pl.col("accident_id") == "2")
     assert acc2["is_grave"].item() is False
     assert acc2["departement"].item() == "2A"  # code Corse non numérique
     assert acc2["type_collision"].item() == "Non renseigné"  # code 99 hors nomenclature
     assert acc2["heure"].item() == 23
+    assert acc2["intersection"].item() == -1  # non renseigné
+    assert acc2["voie_reservee"].item() == -1
 
 
 def test_build_fact_frame_raises_when_accident_has_no_usager(tmp_path: Path) -> None:
