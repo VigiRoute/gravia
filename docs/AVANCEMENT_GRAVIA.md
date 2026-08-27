@@ -140,8 +140,9 @@ MLflow ; serving et monitoring pas encore commencés.
   libellé — `-1` (sentinelle omniprésente dans ces colonnes) fait échouer le cast. Corrigé en
   passant par `Utf8` d'abord. `ml/` ajouté à la couverture de tests suivie (`pyproject.toml`).
 
-- **Entraînement / benchmark de modèles** ([ml/training/benchmark.py](../ml/training/benchmark.py))
-  — benchmark 3 familles de modèles comme prévu par
+- **Entraînement / benchmark de modèles** ([ml/training/benchmark.py](../ml/training/benchmark.py),
+  résultats détaillés dans [docs/ml_training_results.md](ml_training_results.md)) — benchmark 3
+  familles de modèles comme prévu par
   [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md) (régression logistique, Random Forest,
   LightGBM ; XGBoost non ajouté — le document cite « LightGBM/XGBoost » comme alternative, pas
   les deux), chacune trackée comme un run MLflow (params, métriques, modèle). Sélection du
