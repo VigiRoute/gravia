@@ -189,7 +189,9 @@ API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
   `/health` et `/v1/predict-severity` répondent correctement, prédiction cohérente avec le
   domaine (impliquer un 2-roues pousse vers « grave », `departement` reste la feature la plus
   influente).
-  **Performance sous charge réellement testée** ([tests/performance/load_test_serving.py](../tests/performance/load_test_serving.py),
+  **Performance sous charge réellement testée** (détail complet dans
+  [docs/serving_performance.md](serving_performance.md) —
+  [tests/performance/load_test_serving.py](../tests/performance/load_test_serving.py),
   requêtes HTTP concurrentes, pas un aller-retour séquentiel en process) — un premier test
   séquentiel (une requête à la fois) avait affiché p95 = 16 ms, une évaluation **trompeuse** :
   sous charge concurrente réelle, un seul worker uvicorn (config d'origine) sérialisait tout,
