@@ -77,9 +77,9 @@ confirme que Gold + `ml/features` reconstituent fidèlement ce qui avait été �
 - Seuil de décision **national unique**, pas de calibration par sous-groupe (département) : l'angle
   mort de sécurité documenté en CDC §13.7/§14 (recall quasi nul sur Paris avec un seuil national,
   cf. `notebooks/eval_seuil_par_zone.py`) reste un point ouvert, pas traité par ce benchmark.
-- Le seuil calibré (0,47 pour le modèle actuellement `@staging`, LightGBM enriched) n'est pas
-  encore persisté nulle part au-delà du run MLflow — à récupérer par `ml/serving` depuis les
-  métriques du run associé au modèle `@staging`, pas à recalculer ni à coder en dur.
+- ~~Le seuil calibré n'est pas encore persisté nulle part au-delà du run MLflow~~ — fait :
+  `ml/serving` le récupère au démarrage depuis les métriques du run associé au modèle `@staging`
+  (cf. `ml/serving/model.py::load_staged_model`), pas recalculé ni codé en dur.
 
 ## Relancer le benchmark
 

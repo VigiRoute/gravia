@@ -1,0 +1,101 @@
+"""Test d'intégration de l'API de serving contre le vrai modèle `@staging` (MLflow réel).
+
+Pas de données synthétiques ici, contrairement à tests/integration/test_benchmark_mlflow.py : ce
+test vérifie que l'API charge et sert *le* modèle réellement promu (cf.
+docs/ml_training_results.md), pas un modèle jouet — c'est le comportement à vérifier, l'objectif
+n'est pas d'entraîner quoi que ce soit ici (rapide : un seul chargement de modèle, pas de fit).
+"""
+
+from __future__ import annotations
+
+import pytest
+import sqlalchemy as sa
+
+from gravia.config import get_settings
+
+
+def _mlflow_reachable() -> bool:
+    settings = get_settings()
+    try:
+        import mlflow
+
+        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+        mlflow.MlflowClient().search_experiments(max_results=1)
+    except Exception:
+        return False
+    try:
+        sa.create_engine(settings.database.url).connect().close()
+    except Exception:
+        return False
+    return True
+
+
+@pytest.fixture
+def client():
+    if not _mlflow_reachable():
+        pytest.skip("MLflow/PostgreSQL non joignables (stack dev non démarrée, cf. `make dev`)")
+
+    from fastapi.testclient import TestClient
+
+    from ml.serving.api import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+_VALID_PAYLOAD = {
+    "moment": "2026-08-27T14:30:00",
+    "departement": "75",
+    "agglomeration": True,
+    "intersection": 1,
+    "categorie_route": 4,
+    "regime_circulation": 2,
+    "nb_voies": 2,
+    "voie_reservee": 0,
+    "profil_route": 1,
+    "trace_plan": 1,
+    "vitesse_max": 50,
+    "infrastructure": 0,
+    "situation": 1,
+    "luminosite": 1,
+    "meteo": 1,
+    "etat_surface": 1,
+    "type_collision": 3,
+    "nb_vehicules": 2,
+    "flag_2roues_motorise": True,
+    "flag_poids_lourd": False,
+    "flag_velo_edp": False,
+    "flag_pieton": False,
+}
+
+
+def test_health_reports_model_loaded(client) -> None:
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["modele_version"]
+
+
+def test_predict_severity_returns_estimation_with_explanation(client) -> None:
+    response = client.post("/v1/predict-severity", json=_VALID_PAYLOAD)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["gravite_predite"] in {"grave", "non_grave"}
+    assert 0.0 <= body["probabilite"] <= 1.0
+    assert 0.0 <= body["seuil_decision"] <= 1.0
+    assert len(body["top_contributions"]) == 5
+    for contribution in body["top_contributions"]:
+        assert "feature" in contribution
+        assert isinstance(contribution["contribution"], float)
+
+
+def test_predict_severity_rejects_missing_required_field(client) -> None:
+    incomplete_payload = dict(_VALID_PAYLOAD)
+    del incomplete_payload["departement"]
+
+    response = client.post("/v1/predict-severity", json=incomplete_payload)
+
+    assert response.status_code == 422
