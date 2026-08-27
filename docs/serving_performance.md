@@ -5,6 +5,20 @@ répond à une question différente, posée après coup : **a-t-on vérifié la 
 seulement la précision ? Réponse courte : pas au début — un premier test était trompeur — mais
 oui maintenant, sur deux angles distincts.
 
+> ⚠️ **Ces chiffres sont propres à la machine de développement sur laquelle ils ont été mesurés**
+> (16 cœurs, Docker Desktop sur Windows via WSL2/Hyper-V), pas des valeurs absolues transférables
+> telles quelles à un autre poste ou à la cible prod (EKS). Le client de charge et le serveur
+> tournaient sur la **même machine, en localhost** — ils se disputent le même CPU, une situation
+> qui n'existe pas en déploiement réel (client et serveur sur des machines séparées, vrai réseau).
+> Une virtualisation différente, un nombre de cœurs différent, ou simplement d'autres programmes
+> actifs pendant la mesure changeraient les millisecondes exactes.
+>
+> Ce qui se transpose plus fiablement d'une machine à l'autre, ce sont les **comparaisons
+> relatives**, pas les valeurs absolues : 1 → 4 workers a fait ×3-4 sur le débit ici, un rapport
+> qui devrait rester du même ordre ailleurs (proportionnel au nombre de cœurs disponibles) ;
+> LightGBM ~8× plus rapide que Random Forest vient de la structure des modèles eux-mêmes (300
+> arbres à parcourir contre un seul modèle léger), pas de la machine.
+
 ## 1. Capacité de l'API sous charge concurrente
 
 ### Le problème : un test séquentiel donne une fausse impression
