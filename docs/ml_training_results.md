@@ -48,6 +48,39 @@ toutes configurations confondues — promu à l'alias `staging`** (`gravia-sever
 2026-08-27, décision explicite de l'utilisateur). Rechargé après promotion et revérifié :
 `mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
 
+## Latence de prédiction pure des 3 candidats
+
+Le benchmark ci-dessus compare recall/F1, pas la vitesse — un modèle moins bon aurait pu rester
+un choix pertinent s'il était nettement plus rapide. Mesuré séparément
+([tests/performance/compare_model_latency.py](../tests/performance/compare_model_latency.py)),
+une prédiction à la fois (ce que fait l'API à chaque requête), sur le holdout 2023 :
+
+| Modèle | predict p50 | predict p95 | SHAP p50 | SHAP p95 |
+|---|---:|---:|---:|---:|
+| Régression logistique | 2,9-3,2 ms | 3,4-3,6 ms | n/a | n/a |
+| Random Forest | 29,5-30,1 ms | 34-44 ms | n/a | n/a |
+| **LightGBM (déployé)** | 3,9 ms | 5,1-5,7 ms | 4,4-4,6 ms | 6,3-7,3 ms |
+
+→ **LightGBM n'est pas seulement le meilleur modèle du benchmark : c'est aussi l'un des plus
+rapides**, quasiment à égalité avec la régression logistique et **~8× plus rapide que Random
+Forest** (300 arbres parcourus en entier à chaque prédiction). Choisir LightGBM n'a donc sacrifié
+aucune performance brute pour la justesse — les deux critères vont dans le même sens ici, pas de
+compromis à arbitrer entre précision et vitesse.
+
+SHAP non mesuré pour régression logistique/Random Forest : tous deux enveloppés dans un
+`sklearn.Pipeline` (`OneHotEncoder` + classifieur) pour l'encodage catégoriel —
+`shap.TreeExplainer` ne s'applique ni à un `Pipeline` tel quel (Random Forest) ni à un modèle
+linéaire (régression logistique). `ml/serving` ne câble une explication SHAP que pour LightGBM
+aujourd'hui, cohérent avec le seul modèle réellement déployé.
+
+## Performance de l'API sous charge (pas seulement le modèle)
+
+À distinguer de la latence du modèle ci-dessus : la latence de **l'API déployée** sous charge
+concurrente réelle a d'abord été mesurée de façon trompeuse (test séquentiel, une requête à la
+fois) avant d'être corrigée — cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md) et
+[tests/performance/load_test_serving.py](../tests/performance/load_test_serving.py) pour le
+détail (un seul worker uvicorn sérialisait les requêtes ; passage à 4 workers, débit ×3-4).
+
 ## Cohérence avec le baseline déjà publié
 
 Le LightGBM retenu (recall 0,807 / F1 macro 0,707) reproduit à 0,001 près le baseline déjà validé
