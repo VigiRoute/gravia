@@ -6,15 +6,16 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-24 — `ml/features/gold_features.py` implémenté et vérifié :
-reproduit le baseline déjà validé à 0,001 près (recall 0,807 vs 0,808, F1 0,707 vs 0,708).
+**Dernière mise à jour :** 2026-08-27 — `ml/training/benchmark.py` implémenté : benchmark
+LightGBM/régression logistique/Random Forest tracké MLflow, meilleur modèle enregistré (registry).
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
-**Bronze → Silver → Gold est complet, testé (87 % de couverture) et orchestré par Airflow**,
-chargé en base réelle (273 226 accidents, 2019-2023) ; **premier module ML** (`ml/features/`)
-en place, entraînement/serving/monitoring pas encore commencés.
+**Bronze → Silver → Gold est complet, testé (82 % de couverture) et orchestré par Airflow**,
+chargé en base réelle (273 226 accidents, 2019-2023) ; **`ml/features` et `ml/training` en
+place** — un premier modèle (LightGBM) est entraîné, évalué et enregistré dans le registry
+MLflow ; serving et monitoring pas encore commencés.
 
 ## État par composant
 
@@ -139,26 +140,75 @@ en place, entraînement/serving/monitoring pas encore commencés.
   libellé — `-1` (sentinelle omniprésente dans ces colonnes) fait échouer le cast. Corrigé en
   passant par `Utf8` d'abord. `ml/` ajouté à la couverture de tests suivie (`pyproject.toml`).
 
+- **Entraînement / benchmark de modèles** ([ml/training/benchmark.py](../ml/training/benchmark.py),
+  résultats détaillés dans [docs/ml_training_results.md](ml_training_results.md)) — benchmark 3
+  familles de modèles comme prévu par
+  [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md) (régression logistique, Random Forest,
+  LightGBM ; XGBoost non ajouté — le document cite « LightGBM/XGBoost » comme alternative, pas
+  les deux), chacune trackée comme un run MLflow (params, métriques, modèle). Sélection du
+  meilleur modèle : priorité au recall (coût asymétrique, cf. CDC), F1 macro en second critère.
+  Seul un modèle franchissant les deux seuils CDC (recall ≥ 0,80, F1 macro ≥ 0,70) est enregistré
+  dans le registry MLflow, à l'alias `staging` (les stages Staging/Prod sont dépréciés depuis
+  MLflow 2.9, remplacés par des alias — traduction de « registry Staging/Prod » de
+  l'architecture). **Vérifié en conditions réelles** (MLflow + PostgreSQL du Docker Compose dev,
+  273 226 accidents) : logistic_regression recall=0,804/F1=0,695 (sous seuil), random_forest
+  recall=0,801/F1=0,690 (sous seuil), **lightgbm recall=0,807/F1=0,707 (OK)** — cohérent avec la
+  vérification manuelle précédente. LightGBM v1 enregistré et rechargé avec succès
+  (`mlflow.lightgbm.load_model`), prédictions vérifiées correctes.
+  **Deux problèmes réels trouvés en testant, corrigés :**
+  - `.env` définit déjà `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY=test` pour LocalStack/Terraform
+    (chargées par `gravia.config` au démarrage) — MLflow/boto3 lisent les mêmes noms de variable
+    pour l'artifact store S3 (MinIO), avec des identifiants différents. Un `setdefault` ne les
+    remplaçait jamais ; corrigé en les écrasant explicitement dans le process (n'affecte ni
+    `.env` ni le shell appelant).
+  - Le chemin de service générique de MLflow (auto-validation `pyfunc`, scoring REST JSON) perd
+    le dtype `category` pandas des colonnes catégorielles au round-trip JSON, ce que LightGBM
+    refuse ensuite (`categorical_feature do not match`). Le modèle n'est pas cassé — chargé
+    nativement avec le dtype `category` remis explicitement, il prédit normalement (vérifié). **À
+    retenir pour `ml/serving`** : charger via `mlflow.lightgbm.load_model`, pas via le scoring
+    REST générique.
+  30 tests unitaires + 10 tests d'intégration (dont un contre MLflow réel sur données
+  synthétiques, ~12s, isolé du registry réel via des noms de test supprimés en sortie) : 82 % de
+  couverture globale (seuil CLAUDE.md : 80 %).
+  **Config `enriched` testée aussi** (2026-08-27, cf. [ml_training_results.md](ml_training_results.md)) :
+  cette fois les **3 modèles** franchissent les seuils CDC ; LightGBM enriched (F1 macro 0,727)
+  bat le LightGBM baseline (0,707), reproduit la config C de
+  `notebooks/eval_enrichissement_vs_seuil.py` à 0,002 près. **Promu à l'alias `staging`**
+  (`gravia-severity-classifier` v2, décision explicite de l'utilisateur) — rechargé et revérifié
+  après promotion (`mlflow.lightgbm.load_model`, prédictions correctes). v1 (baseline) reste dans
+  le registry comme historique, accessible via `models:/gravia-severity-classifier/1`.
+
 ### 🚧 Pas commencé
 
-- **Entraînement / benchmark de modèles** (`ml/training/` — vide). Le modèle de référence
-  n'existe qu'à l'état de notebook d'exploration (`notebooks/eda_baseline_baac.py`) et de la
-  vérification manuelle ci-dessus, pas encore industrialisé en pipeline reproductible (tracking
-  MLflow, registry, seuil calibré persisté).
-- **Serving FastAPI** `/v1/predict-severity` (`ml/serving/` — vide).
+- **Serving FastAPI** `/v1/predict-severity` (`ml/serving/` — vide). À charger via
+  `mlflow.lightgbm.load_model`, pas via le scoring REST générique MLflow (cf. ci-dessus).
 - **Monitoring de dérive Evidently** (`ml/monitoring/` — vide).
 - **Great Expectations** (`data/expectations/` à vérifier/peupler).
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
   suivi.
 
+## Pistes à évaluer plus tard
+
+- **Étendre le nombre de millésimes d'entraînement.** 2024 est publié sur data.gouv.fr (mêmes
+  noms de fichiers que 2023, déjà gérés par `bronze.py`), donc faisable techniquement. Mais avant
+  de s'y lancer, à trancher : (1) **combien d'années** utiliser pour le train sans dégrader la
+  pertinence du signal (le BAAC change de convention chaque année — cf. CLAUDE.md, pièges de
+  schéma — donc « plus » n'est pas gratuit : chaque nouveau millésime ajouté doit être vérifié
+  comme les précédents) ; (2) **si c'est réellement utile** — le baseline atteint déjà les deux
+  seuils CDC avec 5 ans (273 226 accidents), donc établir d'abord si le facteur limitant actuel
+  est la quantité de données ou autre chose (features, angle mort du seuil unique) avant d'investir
+  dans l'ingestion. Décalé au train (2019-2022) ou ajouté au holdout changerait aussi le protocole
+  de référence déjà cité partout (CLAUDE.md, ce fichier, `ml_training_results.md`) — à documenter
+  explicitement plutôt qu'à faire glisser silencieusement.
+
 ## Prochaine étape probable
 
-**Entraînement du modèle** (`ml/training/`) au-dessus de `ml/features/gold_features.py` :
-industrialiser ce qui est déjà vérifié manuellement (LightGBM, calibrage de seuil sur validation,
-recall/F1) en pipeline reproductible avec tracking MLflow. Reste à trancher : quelle configuration
-entraîner par défaut (baseline seul vs + `ENRICHED_FLAG_COLUMNS`) et comment gérer l'angle mort du
-seuil unique (CDC §13.7/14, toujours un point ouvert). Alternative possible : Great Expectations
-(`data/expectations/`), toujours vide. Une branche par sujet (cf. CLAUDE.md, Workflow Git).
+**Serving FastAPI** (`ml/serving/`) au-dessus du modèle enregistré dans le registry MLflow
+(`gravia-severity-classifier@staging`, LightGBM enriched v2) : endpoint `/v1/predict-severity`
+(cf. CDC), charger le modèle nativement (pas via le scoring REST générique MLflow, cf. piège
+trouvé ci-dessus), appliquer le seuil calibré (0,47 — à persister quelque part plutôt qu'à
+recalculer). Alternative possible : Great Expectations (`data/expectations/`), toujours vide. Une
+branche par sujet (cf. CLAUDE.md, Workflow Git).
 
 ## Comment relancer le contexte dans un nouveau chat
 
