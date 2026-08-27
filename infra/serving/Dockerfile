@@ -39,4 +39,9 @@ ENV PYTHONPATH=/app/src:/app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "ml.serving.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# 4 workers (processus séparés) : un uvicorn à worker unique sérialise les requêtes derrière le
+# GIL — constaté en testant en charge réelle (débit plafonné à ~65 req/s quelle que soit la
+# concurrence, p95 dépassant largement les 300 ms visés dès 25 requêtes simultanées, cf.
+# docs/ml_training_results.md). Chaque worker recharge indépendamment le modèle au démarrage
+# (mémoire dupliquée par worker) — acceptable pour un modèle LightGBM de cette taille.
+CMD ["uvicorn", "ml.serving.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
