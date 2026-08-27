@@ -6,15 +6,15 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-24 — `gold_dim_lieu`/`gold_dim_conditions` étendus pour
-couvrir toutes les features du baseline validé, en préparation de `ml/features`.
+**Dernière mise à jour :** 2026-08-24 — `ml/features/gold_features.py` implémenté et vérifié :
+reproduit le baseline déjà validé à 0,001 près (recall 0,807 vs 0,808, F1 0,707 vs 0,708).
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
-**Bronze → Silver → Gold est complet, testé (90 % de couverture) et orchestré par Airflow**,
-chargé en base réelle (273 226 accidents, 2019-2023) ; aucun code ML (features, entraînement,
-serving) n'existe encore hors notebooks d'exploration.
+**Bronze → Silver → Gold est complet, testé (87 % de couverture) et orchestré par Airflow**,
+chargé en base réelle (273 226 accidents, 2019-2023) ; **premier module ML** (`ml/features/`)
+en place, entraînement/serving/monitoring pas encore commencés.
 
 ## État par composant
 
@@ -123,14 +123,28 @@ serving) n'existe encore hors notebooks d'exploration.
   **Vérifié** : `airflow dags test etl_medallion_baac` exécute les 15 tâches (5 millésimes × 3
   couches) avec succès en ~82 s ; les données rechargées restent identiques (273 226 accidents,
   35,76 % `is_grave`) — l'orchestration ne modifie pas les résultats déjà validés en CLI manuel.
+- **Feature engineering ML** ([ml/features/gold_features.py](../ml/features/gold_features.py))
+  — charge le schéma en étoile Gold déjà joint depuis PostgreSQL, type pour un modèle
+  (catégorielles en `Categorical`, numériques en `Float64`), split temporel anti-leakage train
+  2019-2021 / validation 2022 / test 2023 (codé en dur, dévier casserait la comparabilité avec
+  les chiffres de référence). Trois groupes de colonnes distincts plutôt que tout mélanger :
+  `BASELINE_*` (protocole d'origine, renommé aux noms Gold), `ENRICHED_FLAG_COLUMNS` (meilleure
+  config déjà testée), `UNVALIDATED_*` (`weekend`/`jour_ferie`/`nb_usagers`, disponibles dans
+  Gold mais jamais testés dans aucun notebook — à comparer au protocole avant adoption, pas à
+  utiliser d'office). **Vérifié en reproduisant le protocole complet** (LightGBM + seuil calibré
+  sur validation, cf. `notebooks/eda_baseline_baac.py`) sur la sortie de ce module : recall 0,807
+  / F1 macro 0,707 contre 0,808/0,708 publiés — reproduction à 0,001 près, seuil calibré identique
+  (0,44). **Piège Polars réel trouvé en testant** : caster un entier directement en `Categorical`
+  traite sa valeur comme un code de catégorie interne (doit être positif) et non comme un
+  libellé — `-1` (sentinelle omniprésente dans ces colonnes) fait échouer le cast. Corrigé en
+  passant par `Utf8` d'abord. `ml/` ajouté à la couverture de tests suivie (`pyproject.toml`).
 
 ### 🚧 Pas commencé
 
-- **Feature engineering ML** (`ml/features/` — vide) — encodage catégoriel, split train/valid/test
-  anti-leakage, à construire au-dessus de `gold_fact_accident`.
 - **Entraînement / benchmark de modèles** (`ml/training/` — vide). Le modèle de référence
-  n'existe qu'à l'état de notebook d'exploration (`notebooks/eda_baseline_baac.py`), pas encore
-  industrialisé en pipeline reproductible.
+  n'existe qu'à l'état de notebook d'exploration (`notebooks/eda_baseline_baac.py`) et de la
+  vérification manuelle ci-dessus, pas encore industrialisé en pipeline reproductible (tracking
+  MLflow, registry, seuil calibré persisté).
 - **Serving FastAPI** `/v1/predict-severity` (`ml/serving/` — vide).
 - **Monitoring de dérive Evidently** (`ml/monitoring/` — vide).
 - **Great Expectations** (`data/expectations/` à vérifier/peupler).
@@ -139,10 +153,11 @@ serving) n'existe encore hors notebooks d'exploration.
 
 ## Prochaine étape probable
 
-**Feature engineering ML** (`ml/features/`) au-dessus de `gold_fact_accident` : encodage des
-colonnes catégorielles pour le modèle, split train (2019-2021) / validation (2022) / test (2023)
-anti-leakage, en cohérence avec le protocole déjà validé dans `notebooks/eda_baseline_baac.py` et
-`notebooks/eval_enrichissement_vs_seuil.py`. Alternative possible : Great Expectations
+**Entraînement du modèle** (`ml/training/`) au-dessus de `ml/features/gold_features.py` :
+industrialiser ce qui est déjà vérifié manuellement (LightGBM, calibrage de seuil sur validation,
+recall/F1) en pipeline reproductible avec tracking MLflow. Reste à trancher : quelle configuration
+entraîner par défaut (baseline seul vs + `ENRICHED_FLAG_COLUMNS`) et comment gérer l'angle mort du
+seuil unique (CDC §13.7/14, toujours un point ouvert). Alternative possible : Great Expectations
 (`data/expectations/`), toujours vide. Une branche par sujet (cf. CLAUDE.md, Workflow Git).
 
 ## Comment relancer le contexte dans un nouveau chat
