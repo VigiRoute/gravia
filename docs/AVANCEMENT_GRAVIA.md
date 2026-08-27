@@ -170,6 +170,12 @@ MLflow ; serving et monitoring pas encore commencés.
   30 tests unitaires + 10 tests d'intégration (dont un contre MLflow réel sur données
   synthétiques, ~12s, isolé du registry réel via des noms de test supprimés en sortie) : 82 % de
   couverture globale (seuil CLAUDE.md : 80 %).
+  **Config `enriched` testée aussi** (2026-08-27, cf. [ml_training_results.md](ml_training_results.md)) :
+  cette fois les **3 modèles** franchissent les seuils CDC ; LightGBM enriched (F1 macro 0,727)
+  bat le LightGBM baseline actuellement en `staging` (0,707), reproduit la config C de
+  `notebooks/eval_enrichissement_vs_seuil.py` à 0,002 près. **Pas encore promu en `staging`** —
+  décision explicite en attente de l'utilisateur (remplacer v1 changerait le modèle actuellement
+  candidat à la production).
 
 ### 🚧 Pas commencé
 
@@ -180,12 +186,27 @@ MLflow ; serving et monitoring pas encore commencés.
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
   suivi.
 
+## Pistes à évaluer plus tard
+
+- **Étendre le nombre de millésimes d'entraînement.** 2024 est publié sur data.gouv.fr (mêmes
+  noms de fichiers que 2023, déjà gérés par `bronze.py`), donc faisable techniquement. Mais avant
+  de s'y lancer, à trancher : (1) **combien d'années** utiliser pour le train sans dégrader la
+  pertinence du signal (le BAAC change de convention chaque année — cf. CLAUDE.md, pièges de
+  schéma — donc « plus » n'est pas gratuit : chaque nouveau millésime ajouté doit être vérifié
+  comme les précédents) ; (2) **si c'est réellement utile** — le baseline atteint déjà les deux
+  seuils CDC avec 5 ans (273 226 accidents), donc établir d'abord si le facteur limitant actuel
+  est la quantité de données ou autre chose (features, angle mort du seuil unique) avant d'investir
+  dans l'ingestion. Décalé au train (2019-2022) ou ajouté au holdout changerait aussi le protocole
+  de référence déjà cité partout (CLAUDE.md, ce fichier, `ml_training_results.md`) — à documenter
+  explicitement plutôt qu'à faire glisser silencieusement.
+
 ## Prochaine étape probable
 
 **Serving FastAPI** (`ml/serving/`) au-dessus du modèle enregistré dans le registry MLflow
 (`gravia-severity-classifier@staging`) : endpoint `/v1/predict-severity` (cf. CDC), charger le
 modèle nativement (pas via le scoring REST générique MLflow, cf. piège trouvé ci-dessus), appliquer
-le seuil calibré (0,44 pour le run actuel — à persister quelque part plutôt qu'à recalculer).
+le seuil calibré (0,44 pour le LightGBM baseline actuellement en `staging` — à persister quelque
+part plutôt qu'à recalculer ; 0,47 si le LightGBM enriched est promu à la place, cf. ci-dessus).
 Alternative possible : Great Expectations (`data/expectations/`), toujours vide. Une branche par
 sujet (cf. CLAUDE.md, Workflow Git).
 
