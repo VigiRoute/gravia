@@ -188,9 +188,22 @@ API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
   **Vérifié en conteneur réel** (`docker compose build/up serving`, pas seulement `TestClient`) :
   `/health` et `/v1/predict-severity` répondent correctement, prédiction cohérente avec le
   domaine (impliquer un 2-roues pousse vers « grave », `departement` reste la feature la plus
-  influente). **Latence mesurée : p50 = 14,5 ms, p95 = 16 ms** (cible CDC ENF-1 : p95 < 300 ms —
-  large marge).
-  **Trois problèmes réels trouvés en construisant l'image Docker, corrigés :**
+  influente).
+  **Performance sous charge réellement testée** (détail complet dans
+  [docs/serving_performance.md](serving_performance.md) —
+  [tests/performance/load_test_serving.py](../tests/performance/load_test_serving.py),
+  requêtes HTTP concurrentes, pas un aller-retour séquentiel en process) — un premier test
+  séquentiel (une requête à la fois) avait affiché p95 = 16 ms, une évaluation **trompeuse** :
+  sous charge concurrente réelle, un seul worker uvicorn (config d'origine) sérialisait tout,
+  débit plafonné à ~65 req/s quelle que soit la concurrence, **p95 = 424 ms dès 25 requêtes
+  simultanées — sous le seuil CDC ENF-1 (< 300 ms)**. Corrigé en passant à 4 workers uvicorn
+  (`infra/serving/Dockerfile`, un par cœur logique disponible n'était pas nécessaire pour ce
+  volume) : débit ~3-4× meilleur (≈210-227 req/s), **p95 repasse sous 300 ms jusqu'à ~25-40
+  requêtes simultanées** ; à 50 requêtes simultanées c'est tout juste à la limite (p95≈301 ms,
+  max 416 ms) — capacité réelle du conteneur dev actuel, pas un chiffre théorique. Script de
+  charge gardé dans le dépôt (pas un `test_*.py` pytest — trop lent pour tourner à chaque commit)
+  pour pouvoir rejouer cette vérification, pas seulement s'y fier une fois.
+  **Quatre problèmes réels trouvés en construisant/chargeant l'image Docker, corrigés :**
   - `statsmodels` (tiré transitivement par `evidently`, un outil de monitoring sans rapport avec
     le serving) a besoin d'une chaîne de compilation absente de l'image `python:3.12-slim`.
     Exclu `great-expectations`/`evidently` du serving (deny-list, pas allow-list — aucun conflit
@@ -202,6 +215,9 @@ API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
     Docker Compose `mlflow` ne matchait pas. Corrigé via `--allowed-hosts` sur le serveur MLflow
     lui-même (`infra/docker-compose.yml`), pas seulement côté serving : ça aurait aussi bloqué
     tout futur appel MLflow depuis Airflow.
+  - Un seul worker uvicorn (config d'origine) sérialise les requêtes derrière le GIL sous charge
+    concurrente — invisible en test séquentiel, trouvé seulement en testant avec de vraies
+    requêtes concurrentes (cf. ci-dessus). Corrigé en passant à `--workers 4`.
   `_configure_s3_artifact_env` déplacée de `ml/training/benchmark.py` (fonction « privée ») vers
   un nouveau module partagé `ml/mlflow_env.py` : `ml/serving` en avait besoin aussi, importer un
   nom `_privé` d'un autre module n'aurait pas été propre.
