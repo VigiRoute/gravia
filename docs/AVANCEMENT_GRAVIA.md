@@ -6,16 +6,16 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-27 — `ml/training/benchmark.py` implémenté : benchmark
-LightGBM/régression logistique/Random Forest tracké MLflow, meilleur modèle enregistré (registry).
+**Dernière mise à jour :** 2026-08-27 — API de serving (`ml/serving/`) implémentée et testée en
+conteneur réel : `POST /v1/predict-severity` sert le modèle `@staging`, p95 = 16 ms.
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
-**Bronze → Silver → Gold est complet, testé (82 % de couverture) et orchestré par Airflow**,
-chargé en base réelle (273 226 accidents, 2019-2023) ; **`ml/features` et `ml/training` en
-place** — un premier modèle (LightGBM) est entraîné, évalué et enregistré dans le registry
-MLflow ; serving et monitoring pas encore commencés.
+**Bronze → Silver → Gold est complet, testé et orchestré par Airflow**, chargé en base réelle
+(273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training` et `ml/serving` en place** — un
+modèle (LightGBM enriched) est entraîné, évalué, enregistré et **servi en temps réel** via une
+API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
 
 ## État par composant
 
@@ -177,11 +177,39 @@ MLflow ; serving et monitoring pas encore commencés.
   (`gravia-severity-classifier` v2, décision explicite de l'utilisateur) — rechargé et revérifié
   après promotion (`mlflow.lightgbm.load_model`, prédictions correctes). v1 (baseline) reste dans
   le registry comme historique, accessible via `models:/gravia-severity-classifier/1`.
+- **Serving** ([ml/serving/](../ml/serving/), image [infra/serving/Dockerfile](../infra/serving/Dockerfile))
+  — `POST /v1/predict-severity` (CDC EF-5) charge le modèle `@staging` une fois au démarrage
+  (`lifespan`), pas à chaque requête. Réponse conforme à EF-4/EC-8 : probabilité + décision
+  binaire au seuil calibré (récupéré depuis les métriques du run MLflow associé, pas recalculé)
+  + explication SHAP (`shap.TreeExplainer`, top 5 contributions). `GET /health` pour le
+  healthcheck Docker. Journalisation des prédictions (EF-7) en logs structurés — pas encore un
+  stockage persistant/interrogeable. Le endpoint **assiste, ne décide pas** (EC-7,
+  human-in-the-loop) : aucune action de dispatching déclenchée.
+  **Vérifié en conteneur réel** (`docker compose build/up serving`, pas seulement `TestClient`) :
+  `/health` et `/v1/predict-severity` répondent correctement, prédiction cohérente avec le
+  domaine (impliquer un 2-roues pousse vers « grave », `departement` reste la feature la plus
+  influente). **Latence mesurée : p50 = 14,5 ms, p95 = 16 ms** (cible CDC ENF-1 : p95 < 300 ms —
+  large marge).
+  **Trois problèmes réels trouvés en construisant l'image Docker, corrigés :**
+  - `statsmodels` (tiré transitivement par `evidently`, un outil de monitoring sans rapport avec
+    le serving) a besoin d'une chaîne de compilation absente de l'image `python:3.12-slim`.
+    Exclu `great-expectations`/`evidently` du serving (deny-list, pas allow-list — aucun conflit
+    de versions à éviter ici contrairement à `infra/airflow/Dockerfile`).
+  - LightGBM (binaire précompilé) a besoin de `libgomp1` (runtime OpenMP), absent de l'image
+    slim — `OSError: libgomp.so.1` au démarrage. Ajouté via `apt-get install libgomp1`.
+  - Le serveur MLflow rejette par défaut les requêtes dont l'en-tête `Host` ne correspond pas à
+    `localhost`/IP privée (protection anti-DNS-rebinding, MLflow ≥ 2.x) — le nom de service
+    Docker Compose `mlflow` ne matchait pas. Corrigé via `--allowed-hosts` sur le serveur MLflow
+    lui-même (`infra/docker-compose.yml`), pas seulement côté serving : ça aurait aussi bloqué
+    tout futur appel MLflow depuis Airflow.
+  `_configure_s3_artifact_env` déplacée de `ml/training/benchmark.py` (fonction « privée ») vers
+  un nouveau module partagé `ml/mlflow_env.py` : `ml/serving` en avait besoin aussi, importer un
+  nom `_privé` d'un autre module n'aurait pas été propre.
+  19 tests supplémentaires (unitaires + intégration contre le vrai modèle `@staging`) : 86 % de
+  couverture globale.
 
 ### 🚧 Pas commencé
 
-- **Serving FastAPI** `/v1/predict-severity` (`ml/serving/` — vide). À charger via
-  `mlflow.lightgbm.load_model`, pas via le scoring REST générique MLflow (cf. ci-dessus).
 - **Monitoring de dérive Evidently** (`ml/monitoring/` — vide).
 - **Great Expectations** (`data/expectations/` à vérifier/peupler).
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
@@ -203,12 +231,11 @@ MLflow ; serving et monitoring pas encore commencés.
 
 ## Prochaine étape probable
 
-**Serving FastAPI** (`ml/serving/`) au-dessus du modèle enregistré dans le registry MLflow
-(`gravia-severity-classifier@staging`, LightGBM enriched v2) : endpoint `/v1/predict-severity`
-(cf. CDC), charger le modèle nativement (pas via le scoring REST générique MLflow, cf. piège
-trouvé ci-dessus), appliquer le seuil calibré (0,47 — à persister quelque part plutôt qu'à
-recalculer). Alternative possible : Great Expectations (`data/expectations/`), toujours vide. Une
-branche par sujet (cf. CLAUDE.md, Workflow Git).
+**Monitoring de dérive** (`ml/monitoring/`, Evidently) — dernier maillon MLOps du CDC (EF-6/§8) :
+détecter la dérive des données pour déclencher un réentraînement (PSI < 0,2, cf. CLAUDE.md,
+seuils et métriques). Alternative possible : Great Expectations (`data/expectations/`), toujours
+vide — plus en amont dans le pipeline (qualité à l'ingestion) que la dérive (qualité dans le
+temps), les deux restent à faire. Une branche par sujet (cf. CLAUDE.md, Workflow Git).
 
 ## Comment relancer le contexte dans un nouveau chat
 
