@@ -19,13 +19,30 @@ CREATE TABLE IF NOT EXISTS gold_dim_date (
     UNIQUE (jour, heure)
 );
 
+-- Regroupe les attributs structurels du lieu (route/infrastructure), qu'ils viennent de la
+-- rubrique BAAC `lieux` ou de `caracteristiques` (`int`, intersection : trait durable du lieu,
+-- pas une condition transitoire — cf. gold_dim_conditions pour météo/luminosité/état surface).
+-- Étendu le 2026-08-24 : le diagramme d'origine (Architecture_GRAVIA.md, avant tout test) ne
+-- prévoyait que 4 attributs, tous ceux ci-dessous sont nécessaires pour reproduire le baseline
+-- déjà validé (notebooks/eda_baseline_baac.py, recall 0,808 / F1 macro 0,708).
 CREATE TABLE IF NOT EXISTS gold_dim_lieu (
     lieu_key            SERIAL PRIMARY KEY,
     departement         VARCHAR(3) NOT NULL,   -- code INSEE : "2A"/"2B" en Corse, non numérique
     agglomeration       BOOLEAN NOT NULL,
+    intersection        SMALLINT NOT NULL,     -- -1 = non renseigné ; caracteristiques.int
     categorie_route     SMALLINT NOT NULL,     -- -1 = non renseigné (cf. dictionnaire ONISR)
+    regime_circulation  SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.circ
+    nb_voies            SMALLINT NOT NULL,     -- lieux.nbv
+    voie_reservee       SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.vosp
+    profil_route        SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.prof (déclivité)
+    trace_plan          SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.plan
     vitesse_max         SMALLINT NOT NULL,     -- -1 = non renseigné
-    UNIQUE (departement, agglomeration, categorie_route, vitesse_max)
+    infrastructure      SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.infra
+    situation           SMALLINT NOT NULL,     -- -1 = non renseigné ; lieux.situ
+    UNIQUE (
+        departement, agglomeration, intersection, categorie_route, regime_circulation, nb_voies,
+        voie_reservee, profil_route, trace_plan, vitesse_max, infrastructure, situation
+    )
 );
 
 CREATE TABLE IF NOT EXISTS gold_dim_conditions (

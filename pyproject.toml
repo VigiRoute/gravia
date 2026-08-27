@@ -75,4 +75,4 @@ testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.coverage.run]
-source = ["gravia"]
+source = ["gravia", "ml"]

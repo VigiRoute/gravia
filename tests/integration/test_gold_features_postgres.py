@@ -1,12 +1,8 @@
-"""Test d'intégration de la couche Gold contre un PostgreSQL réel.
+"""Test d'intégration de ml/features/gold_features.py contre un PostgreSQL réel.
 
-Contrairement à tests/unit/, ce test a besoin de la stack dev (`infra/docker-compose.yml`) :
-il est ignoré (`pytest.skip`) si PostgreSQL n'est pas joignable sur `DATABASE_URL`, plutôt que
-d'échouer, pour ne pas bloquer une exécution sans la stack démarrée.
-
-Le millésime factice 1900 et le département "ZZ" (hors nomenclature réelle) isolent les données
-de test du contenu réel chargé par `python -m gravia.gold` ; le `finally` purge tout ce que le
-test a écrit, y compris dans les dimensions, pour ne pas polluer la base dev partagée.
+Réutilise le même millésime factice que tests/integration/test_gold_postgres.py (1900) et purge
+ses propres données en sortie — cf. ce module pour le détail de l'isolation vis-à-vis de la base
+dev partagée.
 """
 
 from pathlib import Path
@@ -18,9 +14,10 @@ import sqlalchemy as sa
 from gravia.config import Settings, StoragePaths, get_settings
 from gravia.gold import create_schema, load_year
 from gravia.silver import silver_path
+from ml.features.gold_features import YEAR_COLUMN, load_gold_features
 
-TEST_MILLESIME = 1900
-TEST_DEPARTEMENT = "ZZ"
+TEST_MILLESIME = 1901  # distinct de test_gold_postgres.py pour rester isolé si lancés ensemble
+TEST_DEPARTEMENT = "ZY"
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -42,14 +39,14 @@ def _postgres_reachable(settings: Settings) -> bool:
     return True
 
 
-def test_load_year_creates_schema_and_loads_fact_table(tmp_path: Path) -> None:
+def test_load_gold_features_reads_joined_star_schema(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     if not _postgres_reachable(settings):
         pytest.skip("PostgreSQL non joignable (stack dev non démarrée, cf. `make dev`)")
 
     caract = pl.DataFrame(
         {
-            "Num_Acc": ["TEST0001"],
+            "Num_Acc": ["FEAT0001"],
             "an": [TEST_MILLESIME],
             "mois": [1],
             "jour": [1],
@@ -74,7 +71,7 @@ def test_load_year_creates_schema_and_loads_fact_table(tmp_path: Path) -> None:
     )
     lieux = pl.DataFrame(
         {
-            "Num_Acc": ["TEST0001"],
+            "Num_Acc": ["FEAT0001"],
             "catr": [4],
             "circ": [2],
             "nbv": [2],
@@ -100,11 +97,11 @@ def test_load_year_creates_schema_and_loads_fact_table(tmp_path: Path) -> None:
         },
     )
     vehicules = pl.DataFrame(
-        {"Num_Acc": ["TEST0001"], "num_veh": ["A01"], "catv": [7]},
+        {"Num_Acc": ["FEAT0001"], "num_veh": ["A01"], "catv": [7]},
         schema_overrides={"catv": pl.Int8},
     )
     usagers = pl.DataFrame(
-        {"Num_Acc": ["TEST0001"], "grav": [3], "catu": [1]},
+        {"Num_Acc": ["FEAT0001"], "grav": [3], "catu": [1]},
         schema_overrides={"grav": pl.Int8, "catu": pl.Int8},
     )
     for table, df in (
@@ -121,18 +118,17 @@ def test_load_year_creates_schema_and_loads_fact_table(tmp_path: Path) -> None:
     create_schema(engine)
 
     try:
-        n = load_year(engine, TEST_MILLESIME, settings)
-        assert n == 1
+        load_year(engine, TEST_MILLESIME, settings)
 
-        with engine.connect() as conn:
-            row = conn.execute(
-                sa.text(
-                    "SELECT is_grave, nb_vehicules FROM gold_fact_accident "
-                    "WHERE accident_id = 'TEST0001'"
-                )
-            ).one()
-            assert row.is_grave is True  # grav=3 (hospitalisé)
-            assert row.nb_vehicules == 1
+        features = load_gold_features(engine).filter(pl.col("accident_id") == "FEAT0001")
+
+        assert features.height == 1
+        row = features.row(0, named=True)
+        assert row["is_grave"] is True
+        assert row[YEAR_COLUMN] == TEST_MILLESIME
+        assert row["departement"] == TEST_DEPARTEMENT
+        assert row["categorie_route"] == 4
+        assert row["type_collision"] == "Autre collision"
     finally:
         with engine.begin() as conn:
             conn.execute(
