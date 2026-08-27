@@ -172,10 +172,11 @@ MLflow ; serving et monitoring pas encore commencés.
   couverture globale (seuil CLAUDE.md : 80 %).
   **Config `enriched` testée aussi** (2026-08-27, cf. [ml_training_results.md](ml_training_results.md)) :
   cette fois les **3 modèles** franchissent les seuils CDC ; LightGBM enriched (F1 macro 0,727)
-  bat le LightGBM baseline actuellement en `staging` (0,707), reproduit la config C de
-  `notebooks/eval_enrichissement_vs_seuil.py` à 0,002 près. **Pas encore promu en `staging`** —
-  décision explicite en attente de l'utilisateur (remplacer v1 changerait le modèle actuellement
-  candidat à la production).
+  bat le LightGBM baseline (0,707), reproduit la config C de
+  `notebooks/eval_enrichissement_vs_seuil.py` à 0,002 près. **Promu à l'alias `staging`**
+  (`gravia-severity-classifier` v2, décision explicite de l'utilisateur) — rechargé et revérifié
+  après promotion (`mlflow.lightgbm.load_model`, prédictions correctes). v1 (baseline) reste dans
+  le registry comme historique, accessible via `models:/gravia-severity-classifier/1`.
 
 ### 🚧 Pas commencé
 
@@ -203,12 +204,11 @@ MLflow ; serving et monitoring pas encore commencés.
 ## Prochaine étape probable
 
 **Serving FastAPI** (`ml/serving/`) au-dessus du modèle enregistré dans le registry MLflow
-(`gravia-severity-classifier@staging`) : endpoint `/v1/predict-severity` (cf. CDC), charger le
-modèle nativement (pas via le scoring REST générique MLflow, cf. piège trouvé ci-dessus), appliquer
-le seuil calibré (0,44 pour le LightGBM baseline actuellement en `staging` — à persister quelque
-part plutôt qu'à recalculer ; 0,47 si le LightGBM enriched est promu à la place, cf. ci-dessus).
-Alternative possible : Great Expectations (`data/expectations/`), toujours vide. Une branche par
-sujet (cf. CLAUDE.md, Workflow Git).
+(`gravia-severity-classifier@staging`, LightGBM enriched v2) : endpoint `/v1/predict-severity`
+(cf. CDC), charger le modèle nativement (pas via le scoring REST générique MLflow, cf. piège
+trouvé ci-dessus), appliquer le seuil calibré (0,47 — à persister quelque part plutôt qu'à
+recalculer). Alternative possible : Great Expectations (`data/expectations/`), toujours vide. Une
+branche par sujet (cf. CLAUDE.md, Workflow Git).
 
 ## Comment relancer le contexte dans un nouveau chat
 

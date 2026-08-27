@@ -21,10 +21,12 @@ holdout 2023 — jamais vu, y compris pour le calibrage. Features : configuratio
 | **LightGBM** | **0,807** | **0,707** | 0,44 | **Atteints** |
 
 → **LightGBM retenu**, seul modèle des trois à franchir les deux seuils CDC. Enregistré dans le
-registry MLflow (`gravia-severity-classifier` v1, alias `staging` — les stages Staging/Production
-sont dépréciés depuis MLflow 2.9, remplacés par les alias). Les deux autres restent trackés dans
-MLflow (comparaison reproductible) mais ne sont pas enregistrés : promotion bloquée sous les
-seuils CDC (cf. CLAUDE.md, seuils et métriques).
+registry MLflow (`gravia-severity-classifier` v1 — les stages Staging/Production sont dépréciés
+depuis MLflow 2.9, remplacés par les alias). Les deux autres restent trackés dans MLflow
+(comparaison reproductible) mais ne sont pas enregistrés : promotion bloquée sous les seuils CDC
+(cf. CLAUDE.md, seuils et métriques). **v1 n'est plus le modèle `@staging`** depuis la promotion
+du LightGBM enriched (v2, cf. section suivante) — reste dans le registry comme historique/point de
+comparaison, rechargeable explicitement via `models:/gravia-severity-classifier/1`.
 
 ## Résultats — configuration `"enriched"`
 
@@ -42,9 +44,9 @@ recall 0,805 / F1 macro 0,727 avec un seuil unique). Même protocole, mêmes 3 m
 LightGBM enriched reproduit à 0,000/0,002 près la config C du notebook (recall 0,805/F1 0,727) —
 même conclusion qu'à l'époque : l'enrichissement seul (sans calibration par département) apporte
 un vrai gain de F1 macro (0,707 → 0,727) sans coût sur le recall. **Meilleur modèle du benchmark
-toutes configurations confondues** — encore non promu à l'alias `staging` à la date de rédaction,
-en attente d'une décision explicite (remplacer v1 changerait le modèle actuellement candidat à la
-production).
+toutes configurations confondues — promu à l'alias `staging`** (`gravia-severity-classifier` v2,
+2026-08-27, décision explicite de l'utilisateur). Rechargé après promotion et revérifié :
+`mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
 
 ## Cohérence avec le baseline déjà publié
 
@@ -75,8 +77,9 @@ confirme que Gold + `ml/features` reconstituent fidèlement ce qui avait été �
 - Seuil de décision **national unique**, pas de calibration par sous-groupe (département) : l'angle
   mort de sécurité documenté en CDC §13.7/§14 (recall quasi nul sur Paris avec un seuil national,
   cf. `notebooks/eval_seuil_par_zone.py`) reste un point ouvert, pas traité par ce benchmark.
-- Le seuil calibré (0,44 pour ce run) n'est pas encore persisté nulle part au-delà du run MLflow —
-  à récupérer par `ml/serving` depuis les métriques du run associé au modèle `@staging`.
+- Le seuil calibré (0,47 pour le modèle actuellement `@staging`, LightGBM enriched) n'est pas
+  encore persisté nulle part au-delà du run MLflow — à récupérer par `ml/serving` depuis les
+  métriques du run associé au modèle `@staging`, pas à recalculer ni à coder en dur.
 
 ## Relancer le benchmark
 
