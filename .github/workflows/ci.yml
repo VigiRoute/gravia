@@ -11,6 +11,14 @@
 # démarrée (elle inclut les tests d'intégration) : un seuil de couverture appliqué ici sur les
 # seuls tests unitaires serait trompeur (mesurerait moins que la couverture réelle du projet),
 # donc affiché en information (`--cov`) plutôt qu'imposé comme un seuil bloquant.
+#
+# MLFLOW_HTTP_REQUEST_MAX_RETRIES=1 : sans ça, chaque vérification « MLflow joignable ? »
+# (avant un `pytest.skip()`) subit le retry par défaut du client MLflow — 7 tentatives avec
+# backoff exponentiel, ~4 min par vérification d'après le commentaire du code MLflow lui-même
+# (`environment_variables.py`, pensé pour absorber du rate-limiting en production, pas pour un
+# sondage de disponibilité). Constaté en testant : un premier run CI a mis plus de 20 minutes
+# à cause de ces retries répétés sur les 5 vérifications MLflow du dépôt (`test_benchmark_mlflow.py`,
+# `test_monitoring_drift.py`, `test_serving_api.py` ×3) avant d'être annulé pour appliquer ce fix.
 
 name: CI
 
@@ -35,6 +43,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      MLFLOW_HTTP_REQUEST_MAX_RETRIES: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
