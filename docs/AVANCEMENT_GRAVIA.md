@@ -6,9 +6,8 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-12 — contrôle qualité Silver (`gravia.quality`, Great
-Expectations) implémenté, testé sur les 5 millésimes réels et câblé dans le DAG Airflow entre
-Silver et Gold.
+**Dernière mise à jour :** 2026-09-12 — CI GitHub Actions ajoutée (lint + tests, cf.
+`.github/workflows/ci.yml`).
 
 ## En une phrase
 
@@ -17,7 +16,7 @@ Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de 
 réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving` et
 `ml/monitoring` en place** — un modèle (LightGBM enriched) est entraîné, évalué, enregistré,
 **servi en temps réel** via une API FastAPI conteneurisée, et sa dérive (features + prédiction)
-est mesurable ; le dépôt `gravia-mlops` reste à faire.
+est mesurable ; **CI (lint + tests) automatisée** ; le dépôt `gravia-mlops` reste à faire.
 
 ## État par composant
 
@@ -276,6 +275,22 @@ est mesurable ; le dépôt `gravia-mlops` reste à faire.
   × bronze/silver/quality/gold, ~41 s) et par `tasks test` sur chacune des 4 tâches — **le DAG
   complet tourne désormais de bout en bout pour la première fois avec ce suivi.**
 
+- **CI GitHub Actions** ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) — deux jobs,
+  `lint` (`ruff check .` + `black --check .`) et `test` (`python -m pytest --cov`), sur push/PR
+  vers `main`. `notebooks/` exclu du lint (`pyproject.toml`, `extend-exclude`) : exploration,
+  jamais soumise à ruff/black jusqu'ici — l'y astreindre aurait reformaté 8 scripts d'analyse déjà
+  validés, sans rapport avec l'ajout de la CI.
+  **Portée volontairement limitée** : les tests d'intégration (PostgreSQL/MLflow/MinIO réels) se
+  `pytest.skip()` proprement en l'absence de la stack dev (vérifié en simulant l'environnement CI
+  en local : `DATABASE_URL`/`MLFLOW_TRACKING_URI` pointés vers un port injoignable → 53 tests
+  passent, 6 se skippent proprement, aucun blocage). Conséquence directe : la couverture mesurée
+  en CI (~73 %) est **sous le seuil CDC de 80 %**, contrairement à la couverture réelle du projet
+  (84 % avec la stack complète démarrée, cf. jalon `ml/serving`) — un seuil bloquant appliqué ici
+  serait trompeur. La couverture est donc affichée en information (`--cov-report=term-missing`),
+  pas imposée comme gate ; le seuil CDC reste vérifié en local avec la stack complète, comme
+  pratiqué depuis le début du projet. Monter Postgres/MLflow/MinIO en services CI pour lever cette
+  limite reste une piste, pas traitée ici (complexité jugée disproportionnée pour l'instant).
+
 ### 🚧 Pas commencé
 
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
@@ -297,10 +312,8 @@ est mesurable ; le dépôt `gravia-mlops` reste à faire.
 
 ## Prochaine étape probable
 
-Il ne reste que deux gros chantiers non entamés : **CI/CD** (GitHub Actions) et le dépôt
-**`gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — ce dernier est une exigence de
-certification distincte (second dépôt), pas juste une tâche technique.
-conditions réelles (actuellement seul non vérifié bout en bout).
+Il ne reste que le dépôt **`gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — une
+exigence de certification distincte (second dépôt), pas juste une tâche technique.
 
 ## Comment relancer le contexte dans un nouveau chat
 

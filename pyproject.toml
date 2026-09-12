@@ -62,6 +62,10 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# notebooks/ = exploration (cf. structure du dépôt), pas du code de la solution : jamais
+# soumis à ruff/black jusqu'ici, les y astreindre maintenant reformaterait des scripts
+# d'analyse déjà validés sans rapport avec la CI ajoutée.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B"]
@@ -69,6 +73,7 @@ select = ["E", "F", "I", "N", "UP", "B"]
 [tool.black]
 line-length = 100
 target-version = ["py312"]
+extend-exclude = "notebooks"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
