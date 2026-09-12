@@ -1,0 +1,45 @@
+# CI de la solution (cf. CLAUDE.md, structure du dépôt : ".github/workflows/ # CI de la
+# solution (tests, lint, build)"), exigence explicite du CDC (Bloc 3/4, ENF-7).
+#
+# Portée volontairement limitée au lint + aux tests qui tournent sans infra externe :
+# les tests d'intégration (tests/integration/) ont besoin de PostgreSQL/MLflow/MinIO réels
+# (cf. infra/docker-compose.yml) et se `pytest.skip()` proprement quand ces services sont
+# injoignables (constaté : ils retombent sur `localhost`, pas les noms de service Docker
+# Compose, donc `Connection refused` immédiat plutôt qu'un timeout DNS) — `python -m pytest`
+# les collecte donc sans erreur, juste marqués `skipped` ici. La couverture ≥ 80 % exigée par
+# le CDC (cf. CLAUDE.md, seuils et métriques) reste vérifiée en local avec la stack complète
+# démarrée (elle inclut les tests d'intégration) : un seuil de couverture appliqué ici sur les
+# seuls tests unitaires serait trompeur (mesurerait moins que la couverture réelle du projet),
+# donc affiché en information (`--cov`) plutôt qu'imposé comme un seuil bloquant.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - run: ruff check .
+      - run: black --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+      - run: python -m pytest --cov --cov-report=term-missing
