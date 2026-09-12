@@ -6,18 +6,18 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-12 — monitoring de dérive (`ml/monitoring/`, Evidently)
-implémenté et testé sur données réelles : PSI par feature + PSI de la prédiction du modèle
-`@staging`.
+**Dernière mise à jour :** 2026-09-12 — contrôle qualité Silver (`gravia.quality`, Great
+Expectations) implémenté, testé sur les 5 millésimes réels et câblé dans le DAG Airflow entre
+Silver et Gold.
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
-**Bronze → Silver → Gold est complet, testé et orchestré par Airflow**, chargé en base réelle
-(273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving` et `ml/monitoring`
-en place** — un modèle (LightGBM enriched) est entraîné, évalué, enregistré, **servi en temps
-réel** via une API FastAPI conteneurisée, et sa dérive (features + prédiction) est mesurable ;
-Great Expectations et le dépôt `gravia-mlops` restent à faire.
+**Bronze → Silver → Quality → Gold est complet, testé et orchestré par Airflow**, chargé en base
+réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving` et
+`ml/monitoring` en place** — un modèle (LightGBM enriched) est entraîné, évalué, enregistré,
+**servi en temps réel** via une API FastAPI conteneurisée, et sa dérive (features + prédiction)
+est mesurable ; le dépôt `gravia-mlops` reste à faire.
 
 ## État par composant
 
@@ -243,9 +243,28 @@ Great Expectations et le dépôt `gravia-mlops` restent à faire.
   réelles, pas une assertion CI. 3 tests unitaires (logique pure, aucune infra) + 1 test
   d'intégration (contre PostgreSQL + MLflow réels).
 
+- **Pipeline de données — couche Quality** ([src/gravia/quality.py](../src/gravia/quality.py)) —
+  Great Expectations valide **Silver**, pas Bronze (fidélité brute) ni Gold (déjà en aval), même
+  frontière que le diagramme d'architecture (`S -.qualité.-> GE`). Câblée dans le DAG Airflow entre
+  `silver` et `gold` (`pipelines/airflow/dags/etl_medallion_dag.py`). Jeux de valeurs autorisées
+  **constatés empiriquement sur les 5 millésimes réels** (pas recopiés à l'aveugle du dictionnaire
+  ONISR) : formalisent en expectations exécutables les pièges de schéma BAAC déjà documentés en
+  prose (sentinelle `-1`, `id_usager` absent avant 2021 — géré en conditionnant l'expectation à la
+  présence de la colonne dans le batch). `vma`/`nbv` (lieux) tolèrent 0,1 % de valeurs aberrantes
+  (`mostly=0,999`) : 64 lignes sur 273 226 portent une vitesse de 300-901 km/h, bruit de saisie
+  déjà présent dans la source BAAC. Vérifié sur les 5 millésimes réels : 20/20 tables conformes.
+  Image Airflow reconstruite avec `great-expectations` ajouté au sous-ensemble de dépendances ETL
+  (`infra/airflow/Dockerfile`) ; import et exécution vérifiés dans le conteneur réel. 5 tests
+  unitaires (dont un cas d'échec provoqué délibérément) + 1 test d'intégration (contre le vrai
+  Silver local).
+  **Problème d'infra préexistant découvert en testant, sans rapport avec ce changement** :
+  l'exécution réelle des tâches Airflow (scheduler LocalExecutor) échoue actuellement avec
+  `Connection Refused` vers l'apiserver — reproduit à l'identique sur `bronze`/`silver`
+  (tâches jamais modifiées), donc pas causé par la couche Quality. Signalé comme tâche séparée à
+  corriger plutôt que traité dans cette PR.
+
 ### 🚧 Pas commencé
 
-- **Great Expectations** (`data/expectations/` à vérifier/peupler).
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
   suivi.
 
@@ -265,9 +284,11 @@ Great Expectations et le dépôt `gravia-mlops` restent à faire.
 
 ## Prochaine étape probable
 
-**Great Expectations** (`data/expectations/`, toujours vide) — qualité des données à l'ingestion,
-plus en amont dans le pipeline que la dérive (`ml/monitoring`, fait). Sinon : CI/CD (GitHub
-Actions) ou le dépôt `gravia-mlops` (Terraform/LocalStack, K8s), tous deux non entamés.
+Il ne reste que deux gros chantiers non entamés : **CI/CD** (GitHub Actions) et le dépôt
+**`gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — ce dernier est une exigence de
+certification distincte (second dépôt), pas juste une tâche technique. Avant ça, corriger le
+problème de connectivité Airflow signalé ci-dessus permettrait de vérifier le DAG complet en
+conditions réelles (actuellement seul non vérifié bout en bout).
 
 ## Comment relancer le contexte dans un nouveau chat
 

@@ -1,9 +1,10 @@
-"""DAG d'orchestration du pipeline de données BAAC : Bronze -> Silver -> Gold.
+"""DAG d'orchestration du pipeline de données BAAC : Bronze -> Silver -> Quality -> Gold.
 
-Un groupe de tâches par millésime (`bronze` -> `silver` -> `gold`, dans cet ordre — Gold a
-besoin de Silver, qui a besoin de Bronze), les millésimes étant indépendants entre eux et donc
-parallélisables. Déclenchement manuel (`schedule=None`) : les millésimes BAAC sont publiés
-annuellement, pas de cadence à automatiser pour l'instant.
+Un groupe de tâches par millésime (`bronze` -> `silver` -> `quality` -> `gold`, dans cet ordre —
+Gold a besoin de Silver, qui a besoin de Bronze ; `quality` valide Silver avant que Gold ne le
+joigne, cf. Architecture_GRAVIA.md §2.2 : `S -.qualité.-> GE`), les millésimes étant indépendants
+entre eux et donc parallélisables. Déclenchement manuel (`schedule=None`) : les millésimes BAAC
+sont publiés annuellement, pas de cadence à automatiser pour l'instant.
 
 Les imports de `gravia.bronze/silver/gold` sont volontairement à l'intérieur de chaque tâche, pas
 en tête de fichier : ce sont eux qui tirent les dépendances lourdes (polars, pyarrow, sqlalchemy),
@@ -48,6 +49,13 @@ def etl_medallion_baac() -> None:
 
             clean((year,), get_settings())
 
+        @task(task_id="quality")
+        def run_quality(year: int) -> None:
+            from gravia.config import get_settings
+            from gravia.quality import validate_silver
+
+            validate_silver((year,), get_settings())
+
         @task(task_id="gold")
         def run_gold(year: int) -> None:
             from gravia.config import get_settings
@@ -55,7 +63,7 @@ def etl_medallion_baac() -> None:
 
             load((year,), get_settings())
 
-        run_bronze(year) >> run_silver(year) >> run_gold(year)
+        run_bronze(year) >> run_silver(year) >> run_quality(year) >> run_gold(year)
 
     for year in DEFAULT_YEARS:
         process_millesime.override(group_id=f"millesime_{year}")(year)
