@@ -6,16 +6,18 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-08-27 — API de serving (`ml/serving/`) implémentée et testée en
-conteneur réel : `POST /v1/predict-severity` sert le modèle `@staging`, p95 = 16 ms.
+**Dernière mise à jour :** 2026-09-12 — monitoring de dérive (`ml/monitoring/`, Evidently)
+implémenté et testé sur données réelles : PSI par feature + PSI de la prédiction du modèle
+`@staging`.
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
 **Bronze → Silver → Gold est complet, testé et orchestré par Airflow**, chargé en base réelle
-(273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training` et `ml/serving` en place** — un
-modèle (LightGBM enriched) est entraîné, évalué, enregistré et **servi en temps réel** via une
-API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
+(273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving` et `ml/monitoring`
+en place** — un modèle (LightGBM enriched) est entraîné, évalué, enregistré, **servi en temps
+réel** via une API FastAPI conteneurisée, et sa dérive (features + prédiction) est mesurable ;
+Great Expectations et le dépôt `gravia-mlops` restent à faire.
 
 ## État par composant
 
@@ -224,9 +226,25 @@ API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
   19 tests supplémentaires (unitaires + intégration contre le vrai modèle `@staging`) : 86 % de
   couverture globale.
 
+- **Pipeline de données — couche Monitoring** ([ml/monitoring/drift.py](../ml/monitoring/drift.py))
+  — deux dérives mesurées séparément avec Evidently (`DataDriftPreset(method="psi")`, la même
+  métrique que celle citée par le CDC, pas une implémentation maison) :
+  1. **Dérive des features** : chaque colonne du modèle `@staging`, train 2019-2021 (référence) vs
+     test 2023 (le seul millésime « nouveau », jamais entraîné dessus, disponible à ce jour —
+     proxy réel en attendant 2024, cf. « Pistes à évaluer plus tard »).
+  2. **Dérive de la prédiction** : distribution des probabilités prédites, validation 2022 vs test
+     2023 — détecte une dégradation du modèle même sans nouvelle vérité terrain.
+  Vérifié sur les vraies données Gold et le vrai modèle `@staging` : sur 24 features, une seule
+  dépasse le seuil CDC (PSI < 0,2) — `departement`, PSI = 0,360 (à investiguer : cardinalité
+  élevée d'une variable catégorielle, ~100 modalités, gonfle mécaniquement le PSI cumulé — pas
+  nécessairement un vrai changement de fond ; lien possible avec l'angle mort du seuil unique déjà
+  documenté). Aucune dérive de prédiction (PSI = 0,001). Script à lancer à la main (pas un
+  `test_*.py` pytest, même famille que `tests/performance/*`) : résultat dépendant des données
+  réelles, pas une assertion CI. 3 tests unitaires (logique pure, aucune infra) + 1 test
+  d'intégration (contre PostgreSQL + MLflow réels).
+
 ### 🚧 Pas commencé
 
-- **Monitoring de dérive Evidently** (`ml/monitoring/` — vide).
 - **Great Expectations** (`data/expectations/` à vérifier/peupler).
 - **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
   suivi.
@@ -247,11 +265,9 @@ API FastAPI conteneurisée ; monitoring (Evidently) pas encore commencé.
 
 ## Prochaine étape probable
 
-**Monitoring de dérive** (`ml/monitoring/`, Evidently) — dernier maillon MLOps du CDC (EF-6/§8) :
-détecter la dérive des données pour déclencher un réentraînement (PSI < 0,2, cf. CLAUDE.md,
-seuils et métriques). Alternative possible : Great Expectations (`data/expectations/`), toujours
-vide — plus en amont dans le pipeline (qualité à l'ingestion) que la dérive (qualité dans le
-temps), les deux restent à faire. Une branche par sujet (cf. CLAUDE.md, Workflow Git).
+**Great Expectations** (`data/expectations/`, toujours vide) — qualité des données à l'ingestion,
+plus en amont dans le pipeline que la dérive (`ml/monitoring`, fait). Sinon : CI/CD (GitHub
+Actions) ou le dépôt `gravia-mlops` (Terraform/LocalStack, K8s), tous deux non entamés.
 
 ## Comment relancer le contexte dans un nouveau chat
 
