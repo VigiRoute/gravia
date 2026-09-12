@@ -33,7 +33,10 @@ import polars as pl
 
 from gravia.config import Settings, get_settings
 
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    # Absent sous `airflow tasks test`, qui enveloppe stdout dans `RedactedIO` (ne délègue pas
+    # cet attribut) — sans incidence dans ce contexte, pas de console Windows à ré-encoder.
+    sys.stdout.reconfigure(encoding="utf-8")
 
 #: Millésimes BAAC ingérés par défaut. Le schéma est stable sur cette période
 #: (cf. CLAUDE.md, pièges de schéma) ; élargir impose de revérifier les en-têtes.

@@ -257,11 +257,24 @@ est mesurable ; le dépôt `gravia-mlops` reste à faire.
   (`infra/airflow/Dockerfile`) ; import et exécution vérifiés dans le conteneur réel. 5 tests
   unitaires (dont un cas d'échec provoqué délibérément) + 1 test d'intégration (contre le vrai
   Silver local).
-  **Problème d'infra préexistant découvert en testant, sans rapport avec ce changement** :
-  l'exécution réelle des tâches Airflow (scheduler LocalExecutor) échoue actuellement avec
-  `Connection Refused` vers l'apiserver — reproduit à l'identique sur `bronze`/`silver`
-  (tâches jamais modifiées), donc pas causé par la couche Quality. Signalé comme tâche séparée à
-  corriger plutôt que traité dans cette PR.
+
+- **Fix Airflow — connectivité tâche → apiserver et `tasks test`**
+  ([infra/docker-compose.yml](../infra/docker-compose.yml),
+  [src/gravia/bronze.py](../src/gravia/bronze.py) et 3 autres modules `gravia.*`) — deux bugs
+  préexistants découverts en vérifiant le DAG complet en conditions réelles, corrigés séparément
+  de la couche Quality (reproduits à l'identique sur `bronze`/`silver`, jamais modifiées) :
+  1. Sans `AIRFLOW__CORE__EXECUTION_API_SERVER_URL`, chaque tâche appelait son API d'exécution
+     sur son défaut codé en dur (`http://localhost:8080/execution/`), valide seulement si
+     apiserver et exécuteur de tâche partagent le même conteneur — ici scheduler et
+     `airflow-apiserver` sont deux conteneurs séparés : `httpcore.ConnectError` sur toute tâche
+     en quelques secondes. Corrigé en pointant explicitement vers `airflow-apiserver:8080`.
+  2. `airflow tasks test` enveloppe `stdout` dans `RedactedIO`, qui ne délègue pas
+     `.reconfigure()` : `AttributeError` sur tout module `gravia.*` appelant
+     `sys.stdout.reconfigure(encoding="utf-8")` au niveau module (encodage console Windows, cf.
+     CLAUDE.md). Rendu défensif (`hasattr`) dans `bronze.py`/`silver.py`/`gold.py`/`quality.py`.
+  Vérifié par un vrai `airflow dags trigger` complet (**20/20 tâches en succès**, 5 millésimes
+  × bronze/silver/quality/gold, ~41 s) et par `tasks test` sur chacune des 4 tâches — **le DAG
+  complet tourne désormais de bout en bout pour la première fois avec ce suivi.**
 
 ### 🚧 Pas commencé
 
@@ -286,8 +299,7 @@ est mesurable ; le dépôt `gravia-mlops` reste à faire.
 
 Il ne reste que deux gros chantiers non entamés : **CI/CD** (GitHub Actions) et le dépôt
 **`gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — ce dernier est une exigence de
-certification distincte (second dépôt), pas juste une tâche technique. Avant ça, corriger le
-problème de connectivité Airflow signalé ci-dessus permettrait de vérifier le DAG complet en
+certification distincte (second dépôt), pas juste une tâche technique.
 conditions réelles (actuellement seul non vérifié bout en bout).
 
 ## Comment relancer le contexte dans un nouveau chat

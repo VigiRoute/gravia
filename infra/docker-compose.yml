@@ -27,6 +27,15 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-gravia}:${POSTGRES_PASSWORD:-gravia}@postgres:5432/airflow
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-dev-secret-key-change-in-prod}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-dev-jwt-secret-change-in-prod}
+    # Sans ceci, chaque tâche appelle son API d'exécution sur son défaut codé en dur
+    # (http://localhost:8080/execution/, cf. airflow/executors/base_executor.py::
+    # get_execution_api_server_url) — correct seulement si apiserver et exécuteur de tâche
+    # partagent le même conteneur. Ici scheduler (LocalExecutor) et airflow-apiserver sont deux
+    # conteneurs séparés : chaque tâche doit joindre apiserver par son nom de service Docker
+    # Compose, pas localhost. Constaté en testant : sans cette variable, toute tâche échoue en
+    # quelques secondes avec `httpcore.ConnectError: [Errno 111] Connection refused` (rien
+    # n'écoute sur localhost:8080 dans le conteneur scheduler).
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
     # PYTHONPATH avant le site-packages installé au build : les DAGs importent le code monté en
     # volume (../src), pas la copie figée au build de l'image (cf. infra/airflow/Dockerfile).
     PYTHONPATH: /opt/airflow/src

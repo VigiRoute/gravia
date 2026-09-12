@@ -56,7 +56,10 @@ from gravia.bronze import DEFAULT_YEARS
 from gravia.config import PROJECT_ROOT, Settings, get_settings
 from gravia.silver import silver_path
 
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    # Absent sous `airflow tasks test`, qui enveloppe stdout dans `RedactedIO` (ne délègue pas
+    # cet attribut) — sans incidence dans ce contexte, pas de console Windows à ré-encoder.
+    sys.stdout.reconfigure(encoding="utf-8")
 
 #: Codes `catv` (véhicules) vérifiés empiriquement dans
 #: notebooks/eval_enrichissement_vs_seuil.py — meilleure configuration testée à ce jour.
