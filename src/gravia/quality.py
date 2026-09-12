@@ -41,7 +41,10 @@ from gravia.bronze import DEFAULT_YEARS
 from gravia.config import Settings, get_settings
 from gravia.silver import CLEANERS, silver_path
 
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    # Absent sous `airflow tasks test`, qui enveloppe stdout dans `RedactedIO` (ne délègue pas
+    # cet attribut) — sans incidence dans ce contexte, pas de console Windows à ré-encoder.
+    sys.stdout.reconfigure(encoding="utf-8")
 
 #: Portée BAAC citée par le CDC (2005-2024) avec une marge pour de futurs millésimes, plutôt que
 #: la liste fermée des 5 années actuellement en Silver — cf. docstring module.

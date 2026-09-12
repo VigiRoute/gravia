@@ -52,7 +52,10 @@ import polars as pl
 from gravia.bronze import DEFAULT_YEARS, bronze_path
 from gravia.config import Settings, get_settings
 
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    # Absent sous `airflow tasks test`, qui enveloppe stdout dans `RedactedIO` (ne délègue pas
+    # cet attribut) — sans incidence dans ce contexte, pas de console Windows à ré-encoder.
+    sys.stdout.reconfigure(encoding="utf-8")
 
 #: Colonnes entières par table, castées avec `strict=False` pour absorber les sentinelles
 #: `" -1"` et les cellules non renseignées (cf. CLAUDE.md, pièges de schéma BAAC).
