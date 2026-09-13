@@ -149,7 +149,7 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 | EF-3b | **Plusieurs modèles sont comparés (benchmark)** — régression logistique (baseline), Random Forest, gradient boosting (LightGBM/XGBoost) — et le **modèle final est retenu en fonction des résultats** (métriques du §11), avec suivi des expériences dans MLflow. |
 | EF-4 | Le modèle renvoie un **score de confiance** et une **explication** (contributions des variables, SHAP). |
 | EF-5 | Une **API REST** expose la prédiction en temps réel (`POST /v1/predict-severity`). |
-| EF-6 | Le système réentraîne le modèle sur nouveau millésime ou sur détection de dérive. |
+| EF-6 | Le système réentraîne le modèle sur nouveau millésime ou sur détection de dérive. **Déclencheur réel implémenté** : `workflow_dispatch` manuel + filet de sécurité calendaire trimestriel (`gravia/.github/workflows/retrain.yml`) — le déclenchement événementiel réel (nouveau millésime publié, dérive détectée par `ml/monitoring/drift.py`) reste manuel à ce jour, pas encore câblé automatiquement. |
 | EF-7 | Le système journalise les prédictions pour audit et traçabilité. |
 
 ---
@@ -205,6 +205,8 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 | **Couverture de tests** | ≥ 80 % | Qualité logicielle | Bloquer la PR |
 
 > Les seuils de performance sont des **cibles provisoires assumées** : le **recall `grave` (0,80)** traduit le coût élevé d'un faux négatif (cas grave manqué), le **F1 macro (0,70)** une cible réaliste sur tâche déséquilibrée. Ils seront **recalibrés à l'issue du benchmark** — la valeur finale étant justifiée par les résultats mesurés, jamais fixée arbitrairement.
+
+> **Couverture de tests réelle** (≥ 80 % visé) : 90 % sur `src/gravia` (pipeline de données), 82-86 % sur `ml/` selon les jalons, mesurée avec la stack dev complète démarrée. En CI (sans stack dev), la couverture mesurée tombe à ~73 % — les tests d'intégration se `pytest.skip()` proprement en l'absence de PostgreSQL/MLflow/MinIO réels plutôt que d'échouer ; ce chiffre CI n'est donc pas représentatif de la couverture réelle du projet (cf. `AVANCEMENT_GRAVIA.md`, section CI GitHub Actions).
 
 ---
 
