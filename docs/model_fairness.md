@@ -66,6 +66,12 @@ un écart de 19 points de pourcentage. Autrement dit, **parmi les accidents rée
 graves**, le modèle sur-signale les jeunes et les seniors comme graves près d'une fois sur deux,
 contre une fois sur quatre pour les 25-34 ans.
 
+![Rappel et FPR par sexe et par tranche d'âge du conducteur](img/fairness_gaps.png)
+
+*Généré par [`docs/generate_result_charts.py`](generate_result_charts.py), recalculé contre la
+stack dev réelle (`python -m docs.generate_result_charts`) — pas une resaisie manuelle des
+chiffres ci-dessus.*
+
 ## Interprétation et portée
 
 - **Pas de biais discriminatoire par sexe** détecté sur ce sous-ensemble — écarts d'*equalized

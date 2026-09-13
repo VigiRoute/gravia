@@ -249,6 +249,10 @@ CDC sur les deux dépôts.
   réelles, pas une assertion CI. 3 tests unitaires (logique pure, aucune infra) + 1 test
   d'intégration (contre PostgreSQL + MLflow réels).
 
+  ![PSI par feature, train 2019-2021 vs test 2023](img/drift_psi.png)
+
+  *Généré par [`docs/generate_result_charts.py`](generate_result_charts.py).*
+
 - **Pipeline de données — couche Quality** ([src/gravia/quality.py](../src/gravia/quality.py)) —
   Great Expectations valide **Silver**, pas Bronze (fidélité brute) ni Gold (déjà en aval), même
   frontière que le diagramme d'architecture (`S -.qualité.-> GE`). Câblée dans le DAG Airflow entre

@@ -33,6 +33,10 @@ dependencies = [
     "uvicorn[standard]==0.51.0",
     "pydantic==2.13.4",
     "prometheus-fastapi-instrumentator==8.1.0",
+    # Graphiques des résultats déjà publiés (docs/generate_result_charts.py) — déjà une
+    # dépendance transitive de shap (ses propres visualisations SHAP), figée ici explicitement
+    # car importée directement, pas seulement de passage.
+    "matplotlib==3.11.1",
     # MLOps
     "mlflow==3.14.0",
     "great-expectations==1.19.1",
