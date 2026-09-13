@@ -1,8 +1,8 @@
 # Architecture de données — GRAVIA
 
 > **Projet** : GRAVIA — Aide à la décision pour la priorisation des secours routiers
-> **Version** : 0.1
-> **Date** : 2026-06-29
+> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, périmètre réel confirmé/corrigé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Date de dernière révision** : 2026-09-13
 > **Bloc RNCP** : Bloc 2 — Concevoir des architectures de données (pour l'IA)
 > **Document amont** : [Cahier des charges](CDC_GRAVIA.md)
 
@@ -13,8 +13,8 @@
 | Dimension | Besoin / contrainte |
 |---|---|
 | **Volume** | BAAC ~2005→2024, quelques millions de lignes `usagers` (< 10 Go) — **tient en mémoire** |
-| **Variété** | Structuré (BAAC, CSV) + semi-structuré (météo, géo, trafic XML DATEX — testé puis écarté comme feature d'entraînement, gain prédictif nul) |
-| **Vélocité** | Batch (millésimes annuels) + ingestion temps réel des signalements (cas d'usage secours) |
+| **Variété** | Structuré (BAAC, CSV) réellement exploité ; semi-structuré (trafic XML DATEX) **exploré en batch**, testé comme feature d'entraînement et écarté (gain prédictif nul) — météo/géo externes envisagées au cadrage, jamais engagées (BAAC porte déjà `atm`/`catr`/`vma`/`nbv`) |
+| **Vélocité** | Batch (millésimes annuels) uniquement. Une ingestion temps réel des signalements était visée au cadrage (bus de messages provisionné) mais le pipeline applicatif n'a pas été implémenté — scope assumé, cf. §2.3 |
 | **Latence de prédiction** | API temps réel p95 < 300 ms |
 | **Sécurité / conformité** | Données personnelles + **santé** (gravité) → chiffrement, accès restreint, RGPD, AIPD |
 | **Coût** | Priorité au **gratuit / open source** ; pas d'accès à un cloud payant |
@@ -53,13 +53,10 @@
 flowchart LR
     subgraph Sources
         A1[BAAC 2005-2024]
-        A2[Météo - Open-Meteo]
-        A3[Géo - BAN/OSM]
-        A4[Trafic temps réel\nDATEX - firehose]
     end
 
-    subgraph Ingestion
-        K[Redpanda/Kafka\nflux temps réel]
+    subgraph "Provisionné, non alimenté"
+        K[Redpanda/Kafka]
     end
 
     subgraph Lakehouse
@@ -81,9 +78,6 @@ flowchart LR
     end
 
     A1 --> B
-    A2 --> B
-    A3 --> B
-    A4 --> K --> B
     B --> S --> G
     S -.qualité.-> GE
     G --> M --> R --> API
@@ -96,16 +90,18 @@ flowchart LR
     O -.pilote.-> M
 ```
 
+Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources actives du diagramme : aucune des trois n'alimente le pipeline (cf. §2.3). Le bus Redpanda/Kafka est provisionné dans la stack dev (démonstration de la capacité) mais n'a aucun producteur ni consommateur applicatif branché dessus.
+
 ### 2.3 Origine des flux et du temps réel
 
-| Flux | Origine | Réel / simulé |
+| Flux | Origine envisagée | Statut réel |
 |---|---|---|
-| Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | Réel |
-| **Signalements** (à scorer) | **Simulateur de rejeu** : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Simulé** |
-| **Trafic temps réel** (firehose) | État de circulation RRN + métropoles (débit/occupation, DATEX II), **milliers de mesures toutes les 1–6 min** | **Réel** |
-| Météo | API **Open-Meteo** | Réel (temps réel) |
+| Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | **Réel** — seule source effectivement ingérée |
+| **Signalements** (à scorer) | Simulateur de rejeu : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Non implémenté** — aucun producteur de rejeu construit. Le scoring réel se fait de façon synchrone via l'API REST (`POST /v1/predict-severity`) |
+| **Trafic** (firehose visé) | État de circulation RRN + métropoles (débit/occupation, DATEX II), milliers de mesures toutes les 1–6 min | **Exploré en batch uniquement** (snapshots XML téléchargés) : testé comme feature du modèle et écarté (gain prédictif nul, CDC §13.6). Jamais ingéré en flux, aucun bus alimenté |
+| Météo | API Open-Meteo | **Jamais implémentée** — le BAAC porte déjà une variable météo (`atm`) |
 
-Le **flux haute fréquence** du système est la **donnée de trafic capteur** (réelle, milliers de mesures/min). Son ingestion temps réel a une **justification opérationnelle propre, indépendante du modèle de gravité** : afficher l'état de circulation aux opérateurs de régulation pour évaluer le temps de trajet et optimiser le choix d'itinéraire des secours — un cas d'usage distinct du scoring de gravité (testé comme feature du modèle et écarté, gain prédictif nul, cf. CDC §13.6). C'est cette valeur opérationnelle propre, et non le seul besoin du modèle IA, qui justifie le bus de messages à ce débit : le trafic ne serait pas retiré du pipeline même si aucun modèle ne l'utilisait jamais en feature. Les **signalements** à scorer sont, eux, des événements peu fréquents **simulés par rejeu du BAAC** (la source opérationnelle réelle — régulation des secours — n'étant pas en open data). L'architecture temps réel est réelle et fonctionnelle ; en production, le rejeu serait remplacé par le feed réel de l'opérateur.
+**Choix de périmètre assumé** (même logique que l'arbitrage déjà documenté pour le trafic et les bulletins, CDC §13.6) : le bus de messages (Redpanda, compatible Kafka) est **provisionné** dans la stack dev pour démontrer la capacité d'architecture temps réel attendue par le référentiel, mais **aucun producteur ni consommateur applicatif n'a été implémenté**. Le raisonnement qui justifierait Kafka reste valable en théorie — un flux de signalements seul (~150/jour) est insuffisant, il faudrait un flux à fort volume comme le trafic pour le justifier opérationnellement (aide au routage des secours, indépendamment de son usage en feature) — mais ce flux n'a pas été implémenté dans le périmètre de ce projet, seulement exploré en batch pour évaluer son apport au modèle. **Reste à construire en production** : un producteur (rejeu ou feed réel de l'opérateur) et un consommateur appelant l'API de scoring.
 
 > **Bulletins d'incidents (texte)** — retirés du périmètre (source réelle non identifiée, cf. CDC §13.6). Aucun flux non structuré n'alimente donc le pipeline à ce stade ; la variété du dataset repose sur structuré + semi-structuré uniquement.
 
@@ -115,7 +111,7 @@ Le **flux haute fréquence** du système est la **donnée de trafic capteur** (r
 
 Chaque brique est justifiée au regard des contraintes du projet.
 
-**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** est justifié par un **vrai flux haute fréquence**, les données de trafic capteur (milliers de mesures/min), utile opérationnellement (routage des secours) indépendamment de son usage — ou non — comme feature du modèle IA ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
+**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** se justifierait par un flux haute fréquence — les données de trafic capteur (milliers de mesures/min), utiles opérationnellement (routage des secours) indépendamment de leur usage comme feature du modèle IA — mais ce flux n'a été qu'**exploré en batch**, jamais implémenté en ingestion temps réel (cf. §2.3) : le bus reste provisionné pour démontrer la capacité, non alimenté par une application réelle ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
@@ -125,11 +121,11 @@ Chaque brique est justifiée au regard des contraintes du projet.
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
 | **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Scaling horizontal et **haute disponibilité** du service en production ; orchestration des conteneurs | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple, moins de contrôle sur l'orchestration) |
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
-| **Cache** | Redis (dev) / ElastiCache (prod) | Cache de l'**enrichissement météo temps réel** par zone (rafraîchi périodiquement, seul enrichissement externe encore utilisé en feature — le trafic a été écarté, cf. §13.6) : évite un appel externe à chaque prédiction et aide à tenir la **latence p95 < 300 ms** | Aucun cache : appels externes répétés, latence dégradée |
+| **Cache** | Redis (dev) / ElastiCache (prod) | **Provisionné, non utilisé à ce jour** : envisagé au cadrage pour un enrichissement météo temps réel jamais implémenté (§2.3) — aucun module du serving ne s'y connecte. Le serving actuel n'a besoin d'aucun cache pour tenir la latence p95 &lt; 300 ms (cf. `docs/serving_performance.md`) | Aucun cache : pertinent seulement si un enrichissement externe était réintroduit |
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
 | **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
-| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | Absorbe un **flux trafic haute fréquence réel** (milliers de mesures/min, DATEX II, utile à l'affichage opérationnel du trafic pour le routage des secours) + les signalements à scorer ; compatible Kafka (bascule dev→prod sans code) | File simple : insuffisante pour ce débit ; Kafka complet en dev : lourd (d'où Redpanda) |
+| **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | **Provisionné, non alimenté** : dimensionné pour absorber un flux trafic haute fréquence (milliers de mesures/min, DATEX II) et les signalements à scorer, mais aucun producteur/consommateur applicatif n'a été implémenté (§2.3) ; compatible Kafka (bascule dev→prod sans code) si le pipeline applicatif est construit | File simple : insuffisante pour ce débit visé ; Kafka complet en dev : lourd (d'où Redpanda) |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | Même code IaC pour LocalStack et AWS (bascule par endpoint/identifiants) : déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle ; cible AWS documentée | — |
 
@@ -137,7 +133,7 @@ Chaque brique est justifiée au regard des contraintes du projet.
 Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
 
 ### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
-Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** est justifié par un **flux haute fréquence réel** (trafic capteur, milliers de mesures/min) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
+Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** se justifierait par un flux haute fréquence (trafic capteur, milliers de mesures/min) mais reste provisionné sans pipeline applicatif réel (§2.3) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
 
 ---
 
@@ -325,8 +321,8 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ## 9. Surveillance de l'infrastructure
 
-- **Prometheus** : métriques système et applicatives (CPU, mémoire, latence API).
-- **Grafana** : tableaux de bord + alertes (latence p95, taux d'erreur, disponibilité).
+- **Prometheus** : instrumentation de l'API (`prometheus-fastapi-instrumentator`, endpoint `/metrics`) — latence, débit, taux d'erreur.
+- **Grafana** : tableau de bord provisionné (6 panels : p50/p95 vs seuil CDC ENF-1 300 ms, débit par endpoint, taux d'erreur, total requêtes, disponibilité de la cible), vérifié sur trafic réel (p95 ≈ 95 ms mesuré). **Pas d'alerte configurée à ce jour** — les seuils sont visibles sur le dashboard, pas encore câblés à une notification automatique.
 - **Great Expectations** : qualité des données à chaque exécution de pipeline.
 - **Evidently** : dérive des données et du modèle (déclencheur de réentraînement).
 
@@ -347,7 +343,7 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 3. **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants uniquement), déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure — sans simuler une charge de production réelle, hors de portée sans budget cloud payant.
 4. **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
 5. **Anti-leakage strict** : features limitées aux informations connues au signalement.
-6. **Trafic ingéré en temps réel pour une valeur opérationnelle propre** (aide au routage des secours), indépendamment de son usage — écarté — comme feature du modèle de gravité : le bus de messages ne repose donc pas artificiellement sur un besoin du modèle IA.
+6. **Trafic testé comme feature du modèle de gravité et écarté** (gain prédictif nul, exploré en batch uniquement) : sa valeur opérationnelle propre (aide au routage des secours) justifierait en théorie une ingestion temps réel indépendante du modèle IA, mais ce pipeline temps réel n'a pas été implémenté dans le périmètre de ce projet — choix de périmètre assumé et documenté (§2.3).
 
 ---
 

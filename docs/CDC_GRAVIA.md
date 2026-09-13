@@ -2,8 +2,8 @@
 
 > **Projet** : GRAVIA — Aide à la décision pour la priorisation des secours routiers par prédiction de la gravité des accidents
 > **Organisation (fictive)** : VigiRoute — opérateur d'intérêt public (partenariat type ONISR + services de secours)
-> **Version** : 0.1 (brouillon initial)
-> **Date** : 2026-06-29
+> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, périmètre réel confirmé/corrigé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Date de dernière révision** : 2026-09-13
 > **Titre RNCP visé** : Architecte en Intelligence Artificielle
 > **Blocs couverts** : ce document sert de socle aux Blocs 1 (gouvernance), 2 (architecture), 3 (pipelines) et 4 (solution d'IA).
 
@@ -93,7 +93,7 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 ## 5. Périmètre
 
 **Inclus**
-- Ingestion et traitement des données BAAC + enrichissements (météo, géolocalisation, trafic).
+- Ingestion et traitement des données BAAC (météo et route déjà portées par le BAAC ; enrichissement trafic externe évalué comme feature puis écarté, §13.6 ; météo/géo externes jamais engagées, §6.1).
 - Entraînement, évaluation, explicabilité et test d'équité du modèle.
 - API de prédiction temps réel.
 - Pipeline automatisé, CI/CD, réentraînement, monitoring (qualité + dérive).
@@ -110,13 +110,13 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 
 ### 6.1 Sources
 
-| Source | Contenu | Nature | Fréquence |
-|---|---|---|---|
-| **BAAC** (data.gouv.fr) | 4 tables : `caractéristiques`, `lieux`, `véhicules`, `usagers` (~2005→2024) | Structuré | Annuelle (millésime) |
-| Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel |
-| BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel |
-| **État de circulation temps réel** (RRN + métropoles, DATEX II) | Débit, vitesse, taux d'occupation (3 000+ points) | Semi-structuré (XML) | **Temps réel (1–6 min), haute fréquence** |
-| **Signalements** (à scorer) | Accidents entrants à classer à la volée | Flux d'événements | **Simulé par rejeu du BAAC** (voir §6.4) |
+| Source | Contenu | Nature | Fréquence envisagée | Statut réel |
+|---|---|---|---|---|
+| **BAAC** (data.gouv.fr) | 4 tables : `caractéristiques`, `lieux`, `véhicules`, `usagers` (~2005→2024) | Structuré | Annuelle (millésime) | **Seule source réellement ingérée et utilisée par le modèle** |
+| Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel | **Jamais implémentée.** Le BAAC porte déjà une variable météo (`atm`), jugée suffisante au cadrage ; l'enrichissement externe n'a été ni testé ni écarté formellement, simplement pas engagé |
+| BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel | **Jamais implémentée.** Le BAAC porte déjà les caractéristiques de route utilisées en feature (`catr`, `vma`, `nbv`) |
+| **État de circulation** (RRN + métropoles, DATEX II) | Débit, vitesse, taux d'occupation (3 000+ points) | Semi-structuré (XML) | Temps réel (1–6 min) | **Exploré en batch uniquement** (snapshots XML téléchargés, `notebooks/explo_trafic_datex_national.py`) : testé comme feature du modèle et **écarté** (gain prédictif nul, §13.6). Aucune ingestion temps réel ni bus de messages alimenté n'a été implémenté |
+| **Signalements** (à scorer) | Accidents entrants à classer | Flux d'événements | Simulé par rejeu du BAAC | **Non implémenté.** Aucun producteur de rejeu construit ; le scoring se fait aujourd'hui de façon synchrone via l'API REST (`POST /v1/predict-severity`), un accident à la fois — pas via un flux d'événements (détail §6.4) |
 
 > **Bulletins d'incidents (texte)** — retirés du périmètre. L'exploration (§13.6) n'a identifié aucune source réelle correspondante ; la mention initiale provenait d'un mauvais étiquetage d'une source de comptage trafic structurée, pas d'un flux texte. La variété "non structurée" du dataset n'est donc plus démontrée à ce stade — à re-sourcer ou à retirer du discours 3V si aucune source texte n'est identifiée par ailleurs.
 
@@ -129,13 +129,13 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 - **Risque principal** : ré-identification par croisement `lat/long` + `date` + `commune`.
 - **Mesures** : pseudonymisation et agrégation géographique dès la couche Silver, minimisation dès l'ingestion, **AIPD obligatoire** (données de santé + scoring + grande échelle).
 
-### 6.4 Origine du flux temps réel
+### 6.4 Flux temps réel — infrastructure provisionnée, pipeline applicatif non implémenté
 
 Le BAAC est une source **batch** (publiée ~2 fois/an) : ce n'est **pas** une source temps réel. La source opérationnelle réelle des signalements d'accidents (régulation des secours 15 / 18 / 112) **n'est pas accessible en open data**.
 
-En conséquence, le flux de **signalements** est alimenté par un **simulateur de rejeu** (*replay*) : un producteur lit les enregistrements BAAC et les réinjecte dans le bus de messages (Redpanda/Kafka) avec un horodatage, comme s'ils arrivaient en direct. En revanche, les **données de trafic temps réel** (état de circulation, DATEX II — milliers de mesures/min) et la **météo** (Open-Meteo) proviennent de **véritables flux temps réel** : le **trafic constitue le flux haute fréquence** qui justifie le bus de messages, tandis que les signalements en sont les événements (peu fréquents) à scorer.
+**Choix de périmètre assumé, sur le même modèle que l'arbitrage déjà documenté pour le trafic et les bulletins (§13.6)** : un bus de messages (Redpanda, compatible Kafka) est **provisionné** dans la stack dev pour démontrer la capacité d'architecture temps réel attendue par le référentiel, mais **aucun producteur ni consommateur applicatif n'a été implémenté** — ni pour rejouer le BAAC en flux de signalements, ni pour ingérer en continu le trafic DATEX II ou la météo. Les données de trafic ont été **explorées en batch** (téléchargement de snapshots XML DATEX II, cf. `notebooks/explo_trafic_datex_national.py`) pour évaluer leur apport au modèle — testées et écartées (gain prédictif nul, §13.6), jamais branchées à un flux temps réel. Aujourd'hui, le scoring d'un accident se fait uniquement de façon **synchrone via l'API REST** (`POST /v1/predict-severity`) : chaque signalement est scoré à la demande, pas via un flux d'événements.
 
-> **Choix d'architecture assumé.** L'architecture temps réel (bus de messages, enrichissement, inférence) est **réelle et fonctionnelle** ; seule la *source* des signalements est simulée. En production, le simulateur serait remplacé par le **feed réel de l'opérateur** (Kafka managé).
+Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en premier lieu (cf. CLAUDE.md, choix techniques structurants) : sans un flux à fort volume, le seul flux de signalements (~150/jour) est largement insuffisant pour justifier un bus de messages — et le trafic, seul candidat à haut débit identifié, n'a pas démontré d'apport suffisant pour justifier l'effort d'implémenter une ingestion temps réel dans le périmètre de ce projet. **Reste à construire en production** : un producteur de rejeu (ou un véritable feed de l'opérateur) alimentant le bus, avec un consommateur appelant l'API de scoring.
 
 ---
 
@@ -143,7 +143,7 @@ En conséquence, le flux de **signalements** est alimenté par un **simulateur d
 
 | Réf. | Exigence |
 |---|---|
-| EF-1 | Le système ingère les millésimes BAAC et les enrichit (météo, géo, trafic). |
+| EF-1 | Le système ingère les millésimes BAAC. Météo et route sont déjà portées par le BAAC (`atm`, `catr`/`vma`/`nbv`) ; l'enrichissement trafic externe a été évalué comme feature puis écarté (gain prédictif nul, §13.6) ; météo/géo externes n'ont jamais été engagées (§6.1). |
 | EF-2 | Le système nettoie, pseudonymise et structure les données (Bronze → Silver → Gold). |
 | EF-3 | Le modèle prédit la gravité (`grave` / `non grave`) à partir des caractéristiques d'un accident. |
 | EF-3b | **Plusieurs modèles sont comparés (benchmark)** — régression logistique (baseline), Random Forest, gradient boosting (LightGBM/XGBoost) — et le **modèle final est retenu en fonction des résultats** (métriques du §11), avec suivi des expériences dans MLflow. |
@@ -223,7 +223,7 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 1. ✅ **Cible** : binaire `grave`/`non grave` — **validé**. Multi-classes 4 niveaux = extension possible.
 2. ✅ **Périmètre géographique** : **France entière** — validé (volumétrie maîtrisable ; repli sur un sous-ensemble seulement si contrainte technique avérée).
 3. ✅ **Seuils de performance (définition)** : cibles provisoires assumées, à recalibrer après baseline — validé. Le baseline confirme les valeurs cibles à l'échelle nationale, mais révèle une tension d'application par sous-groupe : voir item 7 ci-dessous, non close.
-4. ✅ **Scénario temps réel** : flux alimenté par un **simulateur de rejeu du BAAC** (+ météo/trafic réels) — choix d'architecture **assumé et documenté** (§6.4).
+4. ✅ **Scénario temps réel** : infrastructure (bus de messages) **provisionnée** pour démontrer la capacité, pipeline applicatif (rejeu du BAAC, ingestion trafic/météo temps réel) **non implémenté** — choix de périmètre **assumé et documenté** (§6.4). Le scoring réel se fait via l'API REST synchrone.
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
 6. ✅ **Enrichissements — trafic testé et écarté comme feature, bulletins retirés** : le **trafic** (DATEX II national + capteurs Paris) a été exploré et testé en modèle (jointure, corrélation statistique, gain prédictif mesuré avec/sans la feature, en modèle dédié Paris puis en configuration nationale sparse). Résultat : signal statistique réel mais **gain prédictif nul** une fois intégré à un modèle multivarié qui a déjà accès à l'heure/jour/mois — **écarté comme enrichissement du modèle**. Le flux temps réel DATEX reste pertinent, mais pour une raison **opérationnelle propre et non pour le modèle** : afficher l'état de circulation aux opérateurs de régulation pour optimiser le routage des secours (temps de trajet), un cas d'usage distinct du scoring de gravité. C'est cette valeur opérationnelle, et non un besoin du modèle IA, qui justifie l'ingestion temps réel et le bus de messages (cf. Architecture §2.1) — à défaut, le bus de messages reposerait artificiellement sur le seul volume de signalements (~150/jour), largement insuffisant pour le justifier. Les **bulletins d'incidents** sont **retirés** : aucune source réelle identifiée après recherche — validé.
 7. **Seuils de performance — tension identifiée entre recall et F1 macro** : le baseline BAAC (sans enrichissement) atteint les seuils nationaux agrégés (recall grave 0,808, F1 macro 0,708), mais un seuil de décision unique masque un angle mort : recall de seulement 0,007 sur le sous-ensemble parisien (taux de gravité structurellement plus faible, ~9 % vs ~36 % national). Calibrer des seuils différenciés par zone répare le recall local (jusqu'à 0,777 par département) mais fait chuter le F1 macro national sous le seuil CDC (jusqu'à 0,573) — **les deux seuils ne sont pas simultanément atteignables avec le modèle actuel par simple calibration de seuil**. À trancher avant mise en production : enrichir les features pour les contextes à faible taux de base, et/ou arbitrer explicitement la priorité entre recall local et F1 macro global (cf. §14 Risques).
@@ -237,8 +237,8 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 | Fort déséquilibre des classes | Modèle qui ignore les cas graves | Pondération / rééchantillonnage, métriques adaptées |
 | Ré-identification des victimes | Violation RGPD | Pseudonymisation, agrégation géo, AIPD |
 | Biais discriminatoire du scoring | Décision inéquitable | Tests d'équité, atténuation, human-in-the-loop |
-| Variété initialement tabulaire | Architecture moins riche | Enrichissement semi-structuré réel (météo, trafic XML DATEX en temps réel) ; testé comme feature d'entraînement mais écarté (gain nul, cf. §13.6) — la variété non structurée (bulletins) n'a pas de source réelle identifiée |
-| Source des signalements simulée (rejeu) | Crédibilité B3 | Flux **trafic temps réel natif** (DATEX) comme charge réelle ; rejeu des signalements assumé |
+| Variété initialement tabulaire | Architecture moins riche | Enrichissement semi-structuré trafic XML DATEX **exploré en batch** ; testé comme feature d'entraînement mais écarté (gain nul, cf. §13.6) — non branché à un flux temps réel ; la variété non structurée (bulletins) n'a pas de source réelle identifiée ; météo/géo externes jamais engagées |
+| Aucun pipeline temps réel applicatif implémenté (bus de messages provisionné mais non alimenté, §6.4) | Crédibilité du volet architecture temps réel | Scope explicitement documenté et assumé plutôt que dissimulé (§6.4) ; le scoring réel est servi de façon synchrone via l'API REST |
 | Dérive du parc (trottinettes/EDP) | Perte de performance | Monitoring de dérive + réentraînement |
 | Seuil de décision unique masquant un angle mort local (recall quasi nul sur des zones à faible taux de gravité de base, ex. Paris ~9 % vs national ~36 %) | Système peu sûr localement malgré un recall national conforme | Vérifier le recall par sous-groupe (zone/dep) avant mise en production, pas seulement l'agrégat national ; arbitrer explicitement recall local vs F1 macro global si les deux seuils ne sont pas simultanément atteignables (cf. §13.7) |
 
@@ -257,6 +257,6 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 
 ## 16. Références
 
-- Référentiel RNCP « Architecte en Intelligence Artificielle » — `docs/referentiel.md` (projet LEXIA d'origine)
+- Référentiel RNCP « Architecte en Intelligence Artificielle » — `docs/referentiel.md`
 - Dataset BAAC — https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/
 - RGPD — Règlement (UE) 2016/679 (art. 6, 9, 35)
