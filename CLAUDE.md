@@ -27,7 +27,7 @@ Toujours préciser l'environnement (dev/prod) avant de générer du code ou de l
 |---|---|
 | Stockage objet (Bronze/Silver) | **MinIO** (S3-compatible) |
 | Base analytique (Gold) | **PostgreSQL** (Docker) |
-| Traitement | **Polars / DuckDB** (en mémoire) |
+| Traitement | **Polars** (en mémoire) |
 | Orchestration | **Airflow** (Docker Compose) |
 | Temps réel | **Redpanda** (Kafka-compatible) |
 | Tracking ML | **MLflow** (Docker) |
@@ -59,7 +59,7 @@ Toujours préciser l'environnement (dev/prod) avant de générer du code ou de l
 
 ## Choix techniques structurants (à savoir défendre)
 
-- **Polars/DuckDB, pas Spark** : le volume BAAC tient en mémoire (< 10 Go) → Spark serait de la sur-ingénierie. Spark reste la voie de montée en charge documentée.
+- **Polars, pas Spark** : le volume BAAC tient en mémoire (< 10 Go) → Spark serait de la sur-ingénierie. Spark reste la voie de montée en charge documentée. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais importé nulle part dans le code — tout le traitement passe par Polars et SQL PostgreSQL.
 - **Hybride lac + relationnel** : Parquet (Bronze/Silver) + PostgreSQL schéma en étoile (Gold).
 - **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants). Prouve que l'infrastructure est exécutable, **pas** une charge de production réelle.
 - **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
@@ -177,7 +177,7 @@ Calibrer des seuils par zone répare le recall local mais dégrade le F1 macro g
 |---|---|---|
 | Recall classe `grave` | ≥ 0,80 | Revoir features / rééquilibrage |
 | F1-score macro | ≥ 0,70 | Bloquer la promotion en production |
-| Latence API p95 | < 500 ms | Optimisation serving |
+| Latence API p95 | < 300 ms | Optimisation serving |
 | Disponibilité API | ≥ 99,5 % / mois | Incident |
 | PSI (dérive) | < 0,2 | Déclencher réentraînement |
 | Couverture de tests | ≥ 80 % | Bloquer la PR |

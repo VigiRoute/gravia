@@ -112,7 +112,7 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 
 | Source | Contenu | Nature | Fréquence envisagée | Statut réel |
 |---|---|---|---|---|
-| **BAAC** (data.gouv.fr) | 4 tables : `caractéristiques`, `lieux`, `véhicules`, `usagers` (~2005→2024) | Structuré | Annuelle (millésime) | **Seule source réellement ingérée et utilisée par le modèle** |
+| **BAAC** (data.gouv.fr) | 4 tables : `caractéristiques`, `lieux`, `véhicules`, `usagers` (~2005→2024 disponible) | Structuré | Annuelle (millésime) | **Seule source réellement ingérée et utilisée par le modèle — périmètre effectif : 5 millésimes 2019-2023, 273 226 accidents** (`src/gravia/bronze.py::DEFAULT_YEARS`) ; l'extension aux millésimes antérieurs est documentée comme piste (§13), pas encore engagée |
 | Météo-France / Open-Meteo | Conditions météo au lieu/heure | Semi-structuré | Historique + temps réel | **Jamais implémentée.** Le BAAC porte déjà une variable météo (`atm`), jugée suffisante au cadrage ; l'enrichissement externe n'a été ni testé ni écarté formellement, simplement pas engagé |
 | BAN + OpenStreetMap | Réseau routier, type de voie | Géospatial | Référentiel | **Jamais implémentée.** Le BAAC porte déjà les caractéristiques de route utilisées en feature (`catr`, `vma`, `nbv`) |
 | **État de circulation** (RRN + métropoles, DATEX II) | Débit, vitesse, taux d'occupation (3 000+ points) | Semi-structuré (XML) | Temps réel (1–6 min) | **Exploré en batch uniquement** (snapshots XML téléchargés, `notebooks/explo_trafic_datex_national.py`) : testé comme feature du modèle et **écarté** (gain prédictif nul, §13.6). Aucune ingestion temps réel ni bus de messages alimenté n'a été implémenté |
@@ -121,13 +121,14 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 > **Bulletins d'incidents (texte)** — retirés du périmètre. L'exploration (§13.6) n'a identifié aucune source réelle correspondante ; la mention initiale provenait d'un mauvais étiquetage d'une source de comptage trafic structurée, pas d'un flux texte. La variété "non structurée" du dataset n'est donc plus démontrée à ce stade — à re-sourcer ou à retirer du discours 3V si aucune source texte n'est identifiée par ailleurs.
 
 ### 6.2 Volumétrie
-- Ordre de grandeur : plusieurs millions de lignes `usagers` sur ~20 ans (~50–60k accidents/an).
+- Ordre de grandeur théorique : plusieurs millions de lignes `usagers` sur ~20 ans (~50–60k accidents/an).
+- **Périmètre réellement ingéré à ce jour** : 5 millésimes (2019-2023), **273 226 accidents**, ~600k lignes `usagers` — chargé et vérifié dans PostgreSQL (cf. `AVANCEMENT_GRAVIA.md`).
 
 ### 6.3 Données personnelles et sensibles
 - **Données personnelles** : âge, sexe, géolocalisation précise, motif de trajet.
 - **Données sensibles (art. 9 RGPD)** : la **gravité = donnée de santé**.
 - **Risque principal** : ré-identification par croisement `lat/long` + `date` + `commune`.
-- **Mesures** : pseudonymisation et agrégation géographique dès la couche Silver, minimisation dès l'ingestion, **AIPD obligatoire** (données de santé + scoring + grande échelle).
+- **Mesures** : pseudonymisation et agrégation géographique **dès la couche Silver** (`lat`/`long`/`adr`/`voie`/`pr`/`pr1` supprimées ; Bronze conserve la source telle quelle par principe de fidélité/traçabilité, cf. `src/gravia/bronze.py` — la minimisation intervient donc en Silver, pas à l'ingestion), **AIPD obligatoire** (données de santé + scoring + grande échelle).
 
 ### 6.4 Flux temps réel — infrastructure provisionnée, pipeline applicatif non implémenté
 
@@ -146,7 +147,7 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 | EF-1 | Le système ingère les millésimes BAAC. Météo et route sont déjà portées par le BAAC (`atm`, `catr`/`vma`/`nbv`) ; l'enrichissement trafic externe a été évalué comme feature puis écarté (gain prédictif nul, §13.6) ; météo/géo externes n'ont jamais été engagées (§6.1). |
 | EF-2 | Le système nettoie, pseudonymise et structure les données (Bronze → Silver → Gold). |
 | EF-3 | Le modèle prédit la gravité (`grave` / `non grave`) à partir des caractéristiques d'un accident. |
-| EF-3b | **Plusieurs modèles sont comparés (benchmark)** — régression logistique (baseline), Random Forest, gradient boosting (LightGBM/XGBoost) — et le **modèle final est retenu en fonction des résultats** (métriques du §11), avec suivi des expériences dans MLflow. |
+| EF-3b | **Plusieurs modèles sont comparés (benchmark)** — régression logistique (baseline), Random Forest, gradient boosting (LightGBM/XGBoost) — et le **modèle final est retenu en fonction des résultats** (métriques du §11), avec suivi des expériences dans MLflow. **Réalisé avec LightGBM uniquement** : XGBoost n'a pas été ajouté à côté (le document cite les deux comme une alternative de la même famille gradient boosting, pas deux modèles à tester en plus l'un de l'autre — cf. `docs/ml_training_results.md`). |
 | EF-4 | Le modèle renvoie un **score de confiance** et une **explication** (contributions des variables, SHAP). |
 | EF-5 | Une **API REST** expose la prédiction en temps réel (`POST /v1/predict-severity`). |
 | EF-6 | Le système réentraîne le modèle sur nouveau millésime ou sur détection de dérive. **Déclencheur réel implémenté** : `workflow_dispatch` manuel + filet de sécurité calendaire trimestriel (`gravia/.github/workflows/retrain.yml`) — le déclenchement événementiel réel (nouveau millésime publié, dérive détectée par `ml/monitoring/drift.py`) reste manuel à ce jour, pas encore câblé automatiquement. |
@@ -174,10 +175,10 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 |---|---|
 | EC-1 | **AIPD/DPIA** réalisée (traitement de données de santé à grande échelle avec scoring). |
 | EC-2 | Base légale documentée : mission d'intérêt public (art. 6.1.e) + intérêt public en santé (art. 9.2.i). |
-| EC-3 | Minimisation : seules les variables nécessaires sont conservées ; pseudonymisation dès la Silver. |
+| EC-3 | Minimisation appliquée **dès la Silver** (Bronze conserve la source à l'identique pour la traçabilité, cf. §6.3) ; pseudonymisation dès la Silver. |
 | EC-4 | Durées de conservation définies ; procédures de droit d'accès / rectification / suppression. |
 | EC-5 | Référentiels : RGPD, Loi Informatique et Libertés, ISO 27001, recommandations ANSSI. |
-| EC-6 | **IA éthique** : tests d'équité (parité selon âge/sexe, *equalized odds*), documentation et atténuation des biais. |
+| EC-6 | **IA éthique** : tests d'équité (parité selon âge/sexe, *equalized odds*), documentation et atténuation des biais. **Statut réel** : tests réalisés et documentés (`docs/model_fairness.md`) — parité quasi parfaite par sexe, écart de FPR de 0,191 par tranche d'âge (le modèle sur-signale mineurs et seniors) ; **atténuation non implémentée**, point ouvert à trancher avant production (cf. §13.7/§14). |
 | EC-7 | **Human-in-the-loop** : le modèle assiste l'opérateur, ne prend pas de décision autonome. |
 | EC-8 | Explicabilité fournie pour chaque prédiction (SHAP). |
 | EC-9 | **HDS (Hébergement de Données de Santé)** : non requis sur le périmètre actuel (données ouvertes/pseudonymisées) ; un **hébergeur certifié HDS** (art. L1111-8 CSP) serait requis en production traitant des données réelles de victimes. |
@@ -206,7 +207,9 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 
 > Les seuils de performance sont des **cibles provisoires assumées** : le **recall `grave` (0,80)** traduit le coût élevé d'un faux négatif (cas grave manqué), le **F1 macro (0,70)** une cible réaliste sur tâche déséquilibrée. Ils seront **recalibrés à l'issue du benchmark** — la valeur finale étant justifiée par les résultats mesurés, jamais fixée arbitrairement.
 
-> **Couverture de tests réelle** (≥ 80 % visé) : 90 % sur `src/gravia` (pipeline de données), 82-86 % sur `ml/` selon les jalons, mesurée avec la stack dev complète démarrée. En CI (sans stack dev), la couverture mesurée tombe à ~73 % — les tests d'intégration se `pytest.skip()` proprement en l'absence de PostgreSQL/MLflow/MinIO réels plutôt que d'échouer ; ce chiffre CI n'est donc pas représentatif de la couverture réelle du projet (cf. `AVANCEMENT_GRAVIA.md`, section CI GitHub Actions).
+> **Résultats mesurés (2026-08/09)** — benchmark terminé, cf. [ml_training_results.md](ml_training_results.md) : **LightGBM (config `enriched`)** retenu, recall `grave` = **0,807**, F1 macro = **0,727**, seuil de décision calibré = 0,47 — les deux seuils CDC franchis. Enregistré dans le registry MLflow à l'alias `staging` (`gravia-severity-classifier` v2). Équité : cf. [model_fairness.md](model_fairness.md). Latence/dérive : cf. [serving_performance.md](serving_performance.md).
+
+> **Couverture de tests réelle** (≥ 80 % visé) : 90 % sur `src/gravia` au jalon pipeline de données ; **82 % en couverture globale actuelle** (`gravia` + `ml`, cf. `[tool.coverage.run]` dans `pyproject.toml`, mesuré au 2026-09-13 avec la stack dev complète démarrée) — a atteint jusqu'à 86 % à un jalon intermédiaire, avant que du code ajouté depuis (équité, monitoring de dérive — scripts volontairement non couverts par des tests pytest, résultat dépendant de données réelles) ne dilue légèrement la moyenne, toujours au-dessus du seuil CDC. En CI (sans stack dev), la couverture mesurée tombe à ~73 % — les tests d'intégration se `pytest.skip()` proprement en l'absence de PostgreSQL/MLflow/MinIO réels plutôt que d'échouer ; ce chiffre CI n'est donc pas représentatif de la couverture réelle du projet (cf. `AVANCEMENT_GRAVIA.md`, section CI GitHub Actions).
 
 ---
 
@@ -228,7 +231,7 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 4. ✅ **Scénario temps réel** : infrastructure (bus de messages) **provisionnée** pour démontrer la capacité, pipeline applicatif (rejeu du BAAC, ingestion trafic/météo temps réel) **non implémenté** — choix de périmètre **assumé et documenté** (§6.4). Le scoring réel se fait via l'API REST synchrone.
 5. **Stack technique** dev/prod : à arbitrer dans le document d'architecture (Bloc 2).
 6. ✅ **Enrichissements — trafic testé et écarté comme feature, bulletins retirés** : le **trafic** (DATEX II national + capteurs Paris) a été exploré et testé en modèle (jointure, corrélation statistique, gain prédictif mesuré avec/sans la feature, en modèle dédié Paris puis en configuration nationale sparse — exploration en batch, cf. `notebooks/explo_trafic_datex_national.py`). Résultat : signal statistique réel mais **gain prédictif nul** une fois intégré à un modèle multivarié qui a déjà accès à l'heure/jour/mois — **écarté comme enrichissement du modèle**. Une ingestion temps réel du flux DATEX **resterait pertinente en théorie**, pour une raison **opérationnelle propre et non pour le modèle** : afficher l'état de circulation aux opérateurs de régulation pour optimiser le routage des secours (temps de trajet), un cas d'usage distinct du scoring de gravité. C'est cette valeur opérationnelle, et non un besoin du modèle IA, qui *justifierait* le bus de messages — mais cette ingestion **n'a pas été implémentée** dans le périmètre de ce projet (choix de périmètre assumé, cf. §6.4) : à défaut d'un tel flux, le bus de messages provisionné reposerait artificiellement sur le seul volume de signalements (~150/jour), largement insuffisant pour le justifier. Les **bulletins d'incidents** sont **retirés** : aucune source réelle identifiée après recherche — validé.
-7. **Seuils de performance — tension identifiée entre recall et F1 macro** : le baseline BAAC (sans enrichissement) atteint les seuils nationaux agrégés (recall grave 0,808, F1 macro 0,708), mais un seuil de décision unique masque un angle mort : recall de seulement 0,007 sur le sous-ensemble parisien (taux de gravité structurellement plus faible, ~9 % vs ~36 % national). Calibrer des seuils différenciés par zone répare le recall local (jusqu'à 0,777 par département) mais fait chuter le F1 macro national sous le seuil CDC (jusqu'à 0,573) — **les deux seuils ne sont pas simultanément atteignables avec le modèle actuel par simple calibration de seuil**. À trancher avant mise en production : enrichir les features pour les contextes à faible taux de base, et/ou arbitrer explicitement la priorité entre recall local et F1 macro global (cf. §14 Risques).
+7. **Seuils de performance — tension identifiée entre recall et F1 macro** : le baseline BAAC (sans enrichissement) atteint les seuils nationaux agrégés (recall grave 0,808, F1 macro 0,708), mais un seuil de décision unique masque un angle mort : recall de seulement 0,007 sur le sous-ensemble parisien (taux de gravité structurellement plus faible, ~9 % vs ~36 % national). Calibrer des seuils différenciés par zone répare le recall local (jusqu'à 0,777 par département) mais fait chuter le F1 macro national sous le seuil CDC (jusqu'à 0,573) — les deux seuils ne sont pas simultanément atteignables **par simple calibration de seuil, sans enrichissement**. **Piste déjà testée** (`notebooks/eval_enrichissement_vs_seuil.py`, config D) : combiner seuils par département **et** flags véhicule/usager enrichis (2-roues, poids lourd, piéton) remonte le F1 macro national à **0,609** tout en gardant un recall Paris de **0,812** (au-dessus de la cible 0,80) — **tension atténuée, pas résolue** : 0,609 reste sous le seuil CDC de 0,70. À trancher avant mise en production : pousser l'enrichissement plus loin pour les contextes à faible taux de base, et/ou arbitrer explicitement la priorité entre recall local et F1 macro global (cf. §14 Risques).
 
 ---
 
@@ -262,3 +265,5 @@ Le détail relève des Blocs 2 et 3 ; principes directeurs ici :
 - Référentiel RNCP « Architecte en Intelligence Artificielle » — `docs/referentiel.md`
 - Dataset BAAC — https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/
 - RGPD — Règlement (UE) 2016/679 (art. 6, 9, 35)
+- Résultats mesurés — [ml_training_results.md](ml_training_results.md) · [model_fairness.md](model_fairness.md) · [serving_performance.md](serving_performance.md)
+- État d'avancement du projet — [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md)

@@ -15,7 +15,6 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     # Traitement de données
     "polars==1.42.1",
-    "duckdb==1.5.5",
     "pyarrow==24.0.0",
     # NB : pandas est plafonné à <3 par mlflow. Il tourne donc en 2.3.3 et non en 3.x,
     # sans effet sur les résultats (baseline revalidé à l'identique après rétrogradation).

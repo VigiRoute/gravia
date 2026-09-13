@@ -296,7 +296,11 @@ CDC sur les deux dépôts.
   en local : `DATABASE_URL`/`MLFLOW_TRACKING_URI` pointés vers un port injoignable → 53 tests
   passent, 6 se skippent proprement, aucun blocage). Conséquence directe : la couverture mesurée
   en CI (~73 %) est **sous le seuil CDC de 80 %**, contrairement à la couverture réelle du projet
-  (84 % avec la stack complète démarrée, cf. jalon `ml/serving`) — un seuil bloquant appliqué ici
+  (82 % avec la stack complète démarrée, mesuré au 2026-09-13 — les jalons antérieurs (82-86 %)
+  citaient un instantané plus ancien ; du code ajouté depuis (`ml/fairness`, `ml/monitoring`,
+  scripts volontairement non couverts par des tests pytest, cf. leurs jalons respectifs) a
+  légèrement dilué la moyenne globale sans régression sur les modules déjà couverts) — un seuil
+  bloquant appliqué ici
   serait trompeur. La couverture est donc affichée en information (`--cov-report=term-missing`),
   pas imposée comme gate ; le seuil CDC reste vérifié en local avec la stack complète, comme
   pratiqué depuis le début du projet. Monter Postgres/MLflow/MinIO en services CI pour lever cette

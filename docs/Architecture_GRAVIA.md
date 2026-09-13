@@ -32,7 +32,7 @@
 |---|---|---|
 | Stockage objet (Bronze/Silver) | MinIO (S3-compatible) | AWS S3 |
 | Base analytique (Gold) | PostgreSQL (Docker) | AWS RDS PostgreSQL |
-| Traitement | **Polars / DuckDB** | Polars / DuckDB (conteneurisé) |
+| Traitement | **Polars** | Polars (conteneurisé) |
 | Orchestration | **Airflow** (Docker Compose) | Airflow sur **Kubernetes (EKS)** |
 | Conteneurs | Docker Compose | **Kubernetes (EKS)** |
 | Serving | FastAPI (uvicorn) | FastAPI sur ECS/EKS |
@@ -66,7 +66,7 @@ flowchart LR
     end
 
     subgraph MLOps
-        M[Entraînement & benchmark\nPolars/DuckDB + GBM]
+        M[Entraînement & benchmark\nPolars + GBM]
         R[MLflow\nTracking + Registry]
         API[FastAPI\n/v1/predict-severity]
     end
@@ -111,11 +111,11 @@ Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources activ
 
 Chaque brique est justifiée au regard des contraintes du projet.
 
-**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars/DuckDB plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** se justifierait par un flux haute fréquence — les données de trafic capteur (milliers de mesures/min), utiles opérationnellement (routage des secours) indépendamment de leur usage comme feature du modèle IA — mais ce flux n'a été qu'**exploré en batch**, jamais implémenté en ingestion temps réel (cf. §2.3) : le bus reste provisionné pour démontrer la capacité, non alimenté par une application réelle ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
+**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** se justifierait par un flux haute fréquence — les données de trafic capteur (milliers de mesures/min), utiles opérationnellement (routage des secours) indépendamment de leur usage comme feature du modèle IA — mais ce flux n'a été qu'**exploré en batch**, jamais implémenté en ingestion temps réel (cf. §2.3) : le bus reste provisionné pour démontrer la capacité, non alimenté par une application réelle ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
-| **Moteur de traitement** | **Polars / DuckDB** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
+| **Moteur de traitement** | **Polars** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais utilisé — tout le traitement passe par Polars (Bronze/Silver/Gold) et SQL PostgreSQL (Gold, `ml/features`) | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
 | **Stockage Bronze/Silver** | Parquet sur MinIO/S3 | Colonnaire, compressé, standard lakehouse, narratif Medallion | Tout-relationnel : perd le narratif Bronze/Silver |
 | **Stockage Gold** | **PostgreSQL — schéma en étoile** | Modélisation dimensionnelle, requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
@@ -123,14 +123,14 @@ Chaque brique est justifiée au regard des contraintes du projet.
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
 | **Cache** | Redis (dev) / ElastiCache (prod) | **Provisionné, non utilisé à ce jour** : envisagé au cadrage pour un enrichissement météo temps réel jamais implémenté (§2.3) — aucun module du serving ne s'y connecte. Le serving actuel n'a besoin d'aucun cache pour tenir la latence p95 &lt; 300 ms (cf. `docs/serving_performance.md`) | Aucun cache : pertinent seulement si un enrichissement externe était réintroduit |
 | **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
-| **Tracking / registry** | MLflow | Standard, reproductibilité, registry Staging/Prod | — |
+| **Tracking / registry** | MLflow | Standard, reproductibilité, registry avec alias `staging` (les stages Staging/Production sont dépréciés depuis MLflow 2.9, remplacés par des alias — `models:/gravia-severity-classifier@staging`, cf. `ml/serving/model.py`) | — |
 | **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
 | **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | **Provisionné, non alimenté** : dimensionné pour absorber un flux trafic haute fréquence (milliers de mesures/min, DATEX II) et les signalements à scorer, mais aucun producteur/consommateur applicatif n'a été implémenté (§2.3) ; compatible Kafka (bascule dev→prod sans code) si le pipeline applicatif est construit | File simple : insuffisante pour ce débit visé ; Kafka complet en dev : lourd (d'où Redpanda) |
 | **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
 | **IaC** | Terraform (LocalStack → AWS) | Même code IaC pour LocalStack et AWS (bascule par endpoint/identifiants) : déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle ; cible AWS documentée | — |
 
 ### Note — démonstration Spark (optionnelle)
-Polars/DuckDB est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
+Polars est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
 
 ### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
 Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** se justifierait par un flux haute fréquence (trafic capteur, milliers de mesures/min) mais reste provisionné sans pipeline applicatif réel (§2.3) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
@@ -145,15 +145,17 @@ Les 4 tables BAAC sont reliées par l'identifiant d'accident (`Num_Acc`).
 
 ```mermaid
 erDiagram
-    CARACTERISTIQUES ||--|| LIEUX : "décrit (1-1)"
+    CARACTERISTIQUES ||--o{ LIEUX : "décrit (1-N dans la source, dédupliqué à 1-1 en Silver)"
     CARACTERISTIQUES ||--o{ VEHICULES : "implique (1-N)"
     CARACTERISTIQUES ||--o{ USAGERS : "concerne (1-N)"
     VEHICULES ||--o{ USAGERS : "transporte (1-N)"
 
     CARACTERISTIQUES {
         string Num_Acc PK
-        date jour
-        int hrmn
+        int jour "quantième du mois, pas une date"
+        int mois
+        int an
+        string hrmn "format HH:MM, texte"
         int lum "luminosité"
         int agg "agglomération"
         int atm "conditions atmo"
@@ -266,19 +268,20 @@ erDiagram
 ### 6.1 Dev
 - **Docker Compose** : MinIO, PostgreSQL, Airflow, MLflow, Redis, Redpanda, FastAPI, Prometheus, Grafana.
 
-### 6.2 Prod (cible) déployée via Terraform
+### 6.2 Prod (cible) — ce que le Terraform couvre réellement
 - **LocalStack** : `terraform apply` réel et gratuit du même code IaC qu'AWS (S3, IAM, etc.), émulant fidèlement l'API AWS → prouve l'exécutabilité de l'infrastructure, pas une charge de production réelle (cf. §2.1 pour la portée exacte).
-- **Architecture cible AWS** documentée : S3, RDS PostgreSQL, **EKS (Kubernetes)** pour Airflow + serving, MSK (Kafka), ElastiCache, ECR.
-- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale possible via **k3s/kind**.
+- **Architecture cible AWS documentée** (schéma cible, pour l'oral) : S3, RDS PostgreSQL, EKS (Kubernetes), MSK (Kafka), ElastiCache, ECR.
+- **Ce que le Terraform (`gravia-mlops/terraform/`) écrit réellement** : VPC/subnets/security groups, S3, Secrets Manager, IAM — plus, sous condition (`var.include_pro_only_services`, jamais activée contre LocalStack Community qui ne les supporte pas) : ECR, EKS, RDS. **MSK et ElastiCache ne sont écrits nulle part**, même conditionnellement — cohérent avec le bus de messages et le cache tous deux **provisionnés en dev mais non alimentés** (§2.3, §3) : il n'y avait pas de sens à écrire l'IaC de deux services dont l'usage applicatif reste à construire.
+- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale via **kind**, mais **seulement pour le serving** (`gravia-mlops/k8s/serving-*.yaml`) — Airflow n'a pas été redéployé sur ce cluster, il ne tourne qu'en Docker Compose (dev).
 
 ```mermaid
 flowchart TB
     subgraph "Terraform (IaC)"
         TF[Modules: storage, network, compute, mlops]
     end
-    TF -->|apply dev| LS[LocalStack - émulation AWS gratuite]
-    TF -->|apply cible| AWS[AWS: S3 / RDS / EKS / MSK / ElastiCache]
-    AWS --> K8S[Kubernetes EKS\nAirflow + FastAPI]
+    TF -->|apply réel| LS[LocalStack - émulation AWS gratuite\nVPC / S3 / Secrets Manager / IAM\n+ ECR / EKS / RDS sous condition]
+    TF -.cible documentée, pas écrite.-> AWS[AWS: + MSK / ElastiCache]
+    LS --> K8S[kind - démonstration locale\nserving uniquement]
 ```
 
 ### 6.3 Organisation en deux dépôts
@@ -296,14 +299,16 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ## 7. Sécurité et conformité (lien Bloc 1)
 
-| Aspect | Mesure |
-|---|---|
-| Chiffrement | Au repos (S3/RDS) et en transit (TLS) |
-| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) |
-| Gestion des accès | Moindre privilège (IAM / rôles PostgreSQL) |
-| Secrets | Variables d'environnement `.env` (dev) / Secrets Manager (cible) |
-| Traçabilité | Lineage des transformations, journalisation des prédictions |
-| Données de santé | AIPD obligatoire, minimisation, durées de conservation |
+Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernance §7 et AIPD §5 :
+
+| Aspect | Mesure | Statut |
+|---|---|---|
+| Chiffrement | Au repos (S3/RDS) et en transit (TLS) | À implémenter — pas de cloud réel déployé |
+| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) | **Fait** — `lat`/`long`/`adr`/`voie`/`pr`/`pr1` supprimées |
+| Gestion des accès | Moindre privilège (IAM / rôles PostgreSQL) | À implémenter |
+| Secrets | Variables d'environnement `.env` (dev) / Secrets Manager (cible) | **Fait** en dev (`.env` gitignoré) |
+| Traçabilité | Lineage des transformations, journalisation des prédictions | **Partiel** — prédictions journalisées en logs, pas de registre interrogeable 12 mois |
+| Données de santé | AIPD obligatoire, minimisation, durées de conservation | **Fait** (AIPD rédigée, minimisation en Silver) |
 
 ---
 
@@ -311,8 +316,8 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 | Critère | Réponse |
 |---|---|
-| Montée en charge données | Polars/DuckDB en mémoire ; partitionnement Parquet par millésime |
-| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes (HPA) |
+| Montée en charge données | Polars en mémoire ; partitionnement Parquet par millésime |
+| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes — réplication fixe vérifiée (`replicas: 2`, `gravia-mlops/k8s/serving-deployment.yaml`) ; `HorizontalPodAutoscaler` non implémenté à ce jour |
 | Performance requêtes | Index PostgreSQL sur clés du schéma étoile |
 | Tolérance aux pannes | Redondance S3/RDS (cible), retries Airflow, redémarrage automatique des pods |
 | Reproductibilité | Versioning code (Git) + données (millésimes) + modèles (MLflow) |
@@ -338,7 +343,7 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ## 11. Synthèse des décisions d'architecture
 
-1. **Polars/DuckDB plutôt que Spark** : volume en mémoire → éviter la sur-ingénierie ; Spark gardé comme voie de montée en charge.
+1. **Polars plutôt que Spark** : volume en mémoire → éviter la sur-ingénierie ; Spark gardé comme voie de montée en charge.
 2. **Hybride lac + PostgreSQL** : Medallion pour le narratif + schéma en étoile relationnel pour la modélisation attendue.
 3. **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants uniquement), déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure — sans simuler une charge de production réelle, hors de portée sans budget cloud payant.
 4. **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
@@ -352,7 +357,7 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 - [Cahier des charges GRAVIA](CDC_GRAVIA.md)
 - Référentiel RNCP — Bloc 2
 - LocalStack — https://www.localstack.cloud/
-- Polars — https://pola.rs/ · DuckDB — https://duckdb.org/
+- Polars — https://pola.rs/
 
 ---
 

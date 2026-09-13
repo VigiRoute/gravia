@@ -17,7 +17,7 @@ les modifications locales sont visibles sans reconstruire l'image, seules ses d�
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from airflow.sdk import dag, task, task_group
 
@@ -31,6 +31,11 @@ from gravia.bronze import DEFAULT_YEARS
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["etl", "bronze", "silver", "gold"],
+    # Reprise sur erreur transitoire (ex. Postgres/MinIO pas encore prêts) : 2 tentatives avant
+    # d'échouer la tâche, cf. Gouvernance_GRAVIA.md §8. Trouvé sans réglage en auditant la doc
+    # (default_task_retries=0 vérifié sur le scheduler réel) — la doc affirmait des retries qui
+    # n'existaient pas.
+    default_args={"retries": 2, "retry_delay": timedelta(minutes=1)},
 )
 def etl_medallion_baac() -> None:
     @task_group(group_id="millesime")

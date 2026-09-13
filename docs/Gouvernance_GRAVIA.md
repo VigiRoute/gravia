@@ -100,13 +100,13 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 
 | Dimension | Règle | Contrôle |
 |---|---|---|
-| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {1..4}`, codes valides) |
+| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}` — `-1` = non renseigné, codé explicitement par le BAAC, cf. CLAUDE.md) |
 | Complétude | Champs clés non nuls (identifiant, date, lieu) | Tests de complétude par millésime |
-| Cohérence | Plausibilité (âge, coordonnées en France) | Règles de validation |
+| Cohérence | Plausibilité (âge ≤ 110 ans ; `dep`, `an`, `vma`/`nbv` bornés) | Règles de validation — les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
 | Unicité | Pas de doublons d'accidents | Déduplication en Silver |
 | Traçabilité | Lineage des transformations Bronze→Silver→Gold | Journalisation + métadonnées |
 
-Tout lot non conforme est **rejeté ou mis en quarantaine** et signalé au data steward.
+Tout lot non conforme **bloque la promotion vers Gold** (échec de la tâche `quality` du DAG Airflow, cf. `src/gravia/quality.py::SilverQualityError`) — le Parquet Silver déjà écrit n'est ni déplacé ni supprimé (pas de quarantaine physique) et aucune notification automatique n'est envoyée au data steward à ce jour ; ces deux points restent des mesures cibles.
 
 ## 7. Politique de sécurité et de confidentialité
 
@@ -125,7 +125,7 @@ Tout lot non conforme est **rejeté ou mis en quarantaine** et signalé au data 
 ## 8. Disponibilité et continuité
 
 - Objectif de disponibilité de l'API : ≥ 99,5 %/mois.
-- **Fait** : retries d'orchestration Airflow, redémarrage automatique des conteneurs/pods (vérifié sur cluster `kind` réel, cf. `AVANCEMENT_GRAVIA.md`).
+- **Fait** : retries des tâches Airflow (`default_args={"retries": 2}`, `pipelines/airflow/dags/etl_medallion_dag.py`), redémarrage automatique des conteneurs de la stack dev (`restart: unless-stopped`, `infra/docker-compose.yml`) et des pods K8s (vérifié sur cluster `kind` réel, cf. `AVANCEMENT_GRAVIA.md`). Trouvé sans configuration en auditant cette affirmation (`default_task_retries=0` constaté sur le scheduler réel) — corrigé.
 - **À implémenter** : redondance du stockage (S3/RDS) et sauvegardes testées — politique cible pour la production, non déployée à ce jour (cf. AIPD §5, plan d'action).
 
 ## 9. Cycle de vie et conservation des données
