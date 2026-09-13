@@ -377,6 +377,32 @@ CDC sur les deux dépôts.
   générées contre l'API → visibles dans `/metrics` → scrapées par Prometheus → interrogeables via
   le proxy Grafana (p95 mesuré ≈ 95 ms, largement sous le seuil CDC).
 
+- **Fix Airflow — identifiants "admin/admin" jamais fonctionnels** (`infra/docker-compose.yml`,
+  `Makefile`) — trouvé en auditant la stack après le fix précédent (401 constaté en se
+  connectant). `airflow-init` exécutait `airflow users create --username admin --password admin`
+  (commande FAB), avalée silencieusement par `|| true` : Airflow 3.x utilise **SimpleAuthManager**
+  par défaut, pas FAB (confirmé : `AttributeError: 'AirflowSecurityManagerV2' object has no
+  attribute 'get_all_users'`). SimpleAuthManager génère un mot de passe aléatoire par
+  utilisateur, imprimé une seule fois dans les logs au premier démarrage, sans moyen de le figer
+  (vérifié dans `simple_auth_manager.py` : `_generate_password()` utilise `secrets`
+  inconditionnellement). En dev local mono-poste, désactive l'authentification
+  (`AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"`) plutôt que de suivre un mot de passe
+  changeant à chaque recréation du volume Postgres. Vérifié : `curl http://localhost:8080/api/v2/dags`
+  répond `200` sans aucun header d'auth.
+
+- **Fix `gravia-mlops` CD — image K8s déployée par tag mutable `:latest`**
+  (`gravia-mlops/.github/workflows/deploy.yml`) — trouvé au même audit : `k8s-deploy` déployait
+  `ghcr.io/vigiroute/gravia-serving:latest` tel quel, en contradiction directe avec la règle du
+  projet (« images Docker en tag précis, jamais `latest` », cf. CLAUDE.md) — alors que `gravia`
+  publie déjà un tag immuable (`:${{ github.sha }}`). **Première approche testée et rejetée** :
+  déployer directement par référence `repo@sha256:...` — `kind load docker-image` sur une
+  référence par digest n'est pas reconnue par le kubelet comme « déjà présente »
+  (`imagePullPolicy: IfNotPresent`), le Pod tentait un vrai pull du package GHCR privé (sans
+  `imagePullSecrets`) et finissait en `ImagePullBackOff` (constaté sur un run réel). Corrigé en
+  retaguant localement l'image avec un tag dérivé de son digest (`sha-<12 premiers caractères>`) :
+  garde le comportement local-only déjà éprouvé de `:latest`, tout en étant aussi immuable qu'un
+  digest. Vérifié par deux runs `workflow_dispatch` réels sur la branche du fix.
+
 ## Pistes à évaluer plus tard
 
 - **Étendre le nombre de millésimes d'entraînement.** 2024 est publié sur data.gouv.fr (mêmes
