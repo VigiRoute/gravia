@@ -110,23 +110,23 @@ Tout lot non conforme est **rejeté ou mis en quarantaine** et signalé au data 
 
 ## 7. Politique de sécurité et de confidentialité
 
-| Mesure | Mise en œuvre |
-|---|---|
-| Chiffrement au repos | S3/RDS chiffrés |
-| Chiffrement en transit | TLS systématique |
-| Pseudonymisation | Dès la couche Silver |
-| Contrôle d'accès | Moindre privilège (IAM, rôles PostgreSQL), authentification forte |
-| Gestion des secrets | `.env` (dev) / Secrets Manager (prod) ; jamais dans Git |
-| Cloisonnement | Séparation des environnements dev / prod |
-| Journalisation | Logs d'accès et de prédictions horodatés |
+| Mesure | Mise en œuvre | Statut |
+|---|---|---|
+| Chiffrement au repos | S3/RDS chiffrés | À implémenter — cible prod, pas de cloud réel déployé à ce jour |
+| Chiffrement en transit | TLS systématique | À implémenter — stack dev en HTTP local |
+| Pseudonymisation | Dès la couche Silver | **Fait** — vérifié sur les 5 millésimes réels (cf. AIPD §5) |
+| Contrôle d'accès | Moindre privilège (IAM, rôles PostgreSQL), authentification forte (portée précisée ci-dessous) | À implémenter — cible prod |
+| Gestion des secrets | `.env` (dev) / Secrets Manager (prod) ; jamais dans Git | **Fait** en dev (`.env` gitignoré) |
+| Cloisonnement | Séparation des environnements dev / prod | **Fait** — Docker Compose (dev) / Terraform-LocalStack (cible prod), jamais mélangés |
+| Journalisation | Logs d'accès et de prédictions horodatés | **Partiel** — prédictions journalisées en logs structurés ; pas encore de registre interrogeable 12 mois (cf. AIPD §5) |
 
 > **Portée de « authentification forte »** : cette politique vise la **surface exposée** — l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut — `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée (CLAUDE.md) — pas une dérogation silencieuse à la politique de sécurité de production.
 
 ## 8. Disponibilité et continuité
 
 - Objectif de disponibilité de l'API : ≥ 99,5 %/mois.
-- Redondance du stockage (S3/RDS), sauvegardes régulières et testées.
-- Plan de reprise : retries d'orchestration, redémarrage automatique des conteneurs, restauration depuis sauvegarde.
+- **Fait** : retries d'orchestration Airflow, redémarrage automatique des conteneurs/pods (vérifié sur cluster `kind` réel, cf. `AVANCEMENT_GRAVIA.md`).
+- **À implémenter** : redondance du stockage (S3/RDS) et sauvegardes testées — politique cible pour la production, non déployée à ce jour (cf. AIPD §5, plan d'action).
 
 ## 9. Cycle de vie et conservation des données
 
