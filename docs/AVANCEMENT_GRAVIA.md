@@ -6,8 +6,10 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-13 — dépôt `gravia-mlops` démarré : K8s (`kind`) et Terraform
-(LocalStack) faits et vérifiés sur infra réelle, seule la CD reste à faire.
+**Dernière mise à jour :** 2026-09-13 — CD complet : publication d'image (GHCR), déploiement
+(Terraform/LocalStack + K8s/`kind`) et réentraînement planifié, tous vérifiés sur infra réelle.
+**Les deux dépôts de la certification sont désormais complets** sur toutes les briques prévues
+par le CDC.
 
 ## En une phrase
 
@@ -17,8 +19,10 @@ réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/ser
 `ml/monitoring` et `ml/fairness` en place** — un modèle (LightGBM enriched) est entraîné,
 évalué, enregistré, **servi en temps réel** via une API FastAPI conteneurisée, sa dérive
 (features + prédiction) est mesurable et son équité (âge/sexe) est auditée ; **CI (lint + tests)
-automatisée** ; le dépôt **`gravia-mlops`** a son K8s (`kind`) et son Terraform (LocalStack)
-faits et vérifiés — ne reste que la CD.
++ CD (publication d'image, déploiement, réentraînement planifié) automatisées** ; le dépôt
+**`gravia-mlops`** a son K8s (`kind`), son Terraform (LocalStack) et son CD faits et vérifiés.
+**Reste à faire : rien de structurant** — le projet couvre l'ensemble des briques exigées par le
+CDC sur les deux dépôts.
 
 ## État par composant
 
@@ -320,8 +324,8 @@ faits et vérifiés — ne reste que la CD.
   `--allowed-hosts` déjà documenté ci-dessus, cause différente. Chaque Pod crashait au démarrage
   en tentant de charger le modèle `@staging` avant ce fix.
 
-- **Dépôt `gravia-mlops`** — K8s et Terraform faits, CD restant. Détail complet dans le dépôt
-  lui-même (`gravia-mlops/CLAUDE.md`) :
+- **Dépôt `gravia-mlops`** — complet : K8s, Terraform et CD faits et vérifiés. Détail complet
+  dans le dépôt lui-même (`gravia-mlops/CLAUDE.md`) :
   - **K8s** : manifests de déploiement du `serving` (Deployment/Service/ConfigMap/Secret),
     vérifiés sur un vrai cluster local (`kind`, choisi car LocalStack Community ne supporte même
     pas ECR) — scaling et auto-guérison testés en conditions réelles.
@@ -333,10 +337,22 @@ faits et vérifiés — ne reste que la CD.
     (`var.include_pro_only_services`, jamais activée contre LocalStack). 14 ressources créées et
     vérifiées individuellement via `awslocal` (pas seulement l'état Terraform) ; idempotence
     confirmée.
-
-### 🚧 Pas commencé
-
-- **CD** (`gravia-mlops/.github/workflows/`) — déploiement automatisé, réentraînement planifié.
+  - **CD** — deux moitiés, "construire" côté `gravia` (`publish-serving-image.yml`, publie
+    `ghcr.io/vigiroute/gravia-serving` sur GHCR à chaque push pertinent sur `main`) et "déployer"
+    côté `gravia-mlops` (`deploy.yml`, deux jobs indépendants vérifiés en conditions réelles dans
+    le runner : `terraform-apply` contre LocalStack, `k8s-deploy` sur un cluster `kind` réel avec
+    l'image récupérée depuis GHCR). Package GHCR privé (dépôts privés) : accès cross-repo réglé
+    via liaison manuelle du package à `gravia-mlops` (Manage Actions access, pas d'API pour ça).
+    Deux vrais bugs trouvés et corrigés en testant : une erreur de syntaxe YAML (deux-points non
+    protégés dans une commande `sed`, cassant le parsing) et le même piège de retries MLflow déjà
+    rencontré côté tests (`MLFLOW_HTTP_REQUEST_MAX_RETRIES`), ici sur le cluster `kind` du CD.
+  - **Réentraînement planifié** (CDC EF-6) — `gravia/.github/workflows/retrain.yml` (pas
+    `gravia-mlops` : appelle directement `ml.training.benchmark`, pas de checkout cross-repo
+    nécessaire). Vérifie réellement la joignabilité de MLflow/PostgreSQL avant de lancer
+    l'entraînement plutôt que de le supposer — s'arrête proprement si l'infra manque (aucune
+    stack dev persistante sur ce runner éphémère), au lieu de planter. Déclencheur : `schedule`
+    trimestriel (filet de sécurité) + `workflow_dispatch` manuel — le vrai déclencheur visé par
+    le CDC (nouveau millésime, dérive détectée) reste événementiel, pas calendaire.
 
 ## Pistes à évaluer plus tard
 
@@ -354,9 +370,13 @@ faits et vérifiés — ne reste que la CD.
 
 ## Prochaine étape probable
 
-Il ne reste que la **CD** dans `gravia-mlops` (`.github/workflows/`) : déploiement automatisé
-(build + push des images, `kubectl apply`/`terraform apply` en CI) et réentraînement planifié.
-K8s et Terraform sont faits et vérifiés — c'est le dernier morceau du second dépôt.
+**Aucune brique structurante ne reste à construire.** Les deux dépôts couvrent l'ensemble du
+CDC : pipeline de données (Bronze→Silver→Quality→Gold, Airflow), solution IA (features,
+entraînement, serving, monitoring de dérive, équité), CI/CD des deux dépôts, IaC (Terraform/
+LocalStack), K8s (`kind`) et réentraînement planifié. Les suites possibles à partir d'ici
+relèvent de la finition (présentation orale, vidéos de démonstration exigées par le CDC §15,
+relecture globale de la documentation) plutôt que de nouvelles fonctionnalités — à discuter avec
+l'utilisateur plutôt qu'à décider seul.
 
 ## Comment relancer le contexte dans un nouveau chat
 
