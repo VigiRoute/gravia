@@ -6,10 +6,11 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-13 — CD complet : publication d'image (GHCR), déploiement
-(Terraform/LocalStack + K8s/`kind`) et réentraînement planifié, tous vérifiés sur infra réelle.
+**Dernière mise à jour :** 2026-09-13 — dashboard Grafana latence/débit/erreurs de l'API
+(`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de
+`Architecture_GRAVIA.md` §9 restée non livrée, désormais faite et vérifiée sur trafic réel.
 **Les deux dépôts de la certification sont désormais complets** sur toutes les briques prévues
-par le CDC.
+par le CDC, y compris l'observabilité (ENF-7).
 
 ## En une phrase
 
@@ -353,6 +354,24 @@ CDC sur les deux dépôts.
     stack dev persistante sur ce runner éphémère), au lieu de planter. Déclencheur : `schedule`
     trimestriel (filet de sécurité) + `workflow_dispatch` manuel — le vrai déclencheur visé par
     le CDC (nouveau millésime, dérive détectée) reste événementiel, pas calendaire.
+
+- **Dashboard Grafana — latence/débit/erreurs de l'API** (`infra/grafana/provisioning/`) —
+  demandé en amont de la préparation des vidéos de démonstration (CDC §15) : Grafana n'avait
+  jamais eu de dashboard construit (seule la source de données Prometheus était branchée),
+  malgré la promesse déjà écrite dans `Architecture_GRAVIA.md` §9 ("Grafana : tableaux de bord +
+  alertes — latence p95, taux d'erreur, disponibilité"). `ml/serving/api.py` instrumenté
+  (`prometheus-fastapi-instrumentator==8.1.0`, endpoint `/metrics`) — la cible Prometheus
+  `gravia-api` (déjà déclarée dans `infra/prometheus/prometheus.yml` mais jamais servie) passe
+  réellement à `up`. Dashboard provisionné automatiquement (6 panels : p50/p95 vs seuil CDC
+  ENF-1 300 ms, débit par endpoint, taux d'erreur, total requêtes, disponibilité).
+  **Vrai bug trouvé et corrigé en testant** : après le premier redémarrage, Grafana a totalement
+  refusé de démarrer (`Datasource provisioning error: data source not found`) — la source de
+  données existait déjà dans le volume persistant depuis des semaines avec un UID auto-généré,
+  en conflit avec le `uid: prometheus` fixé dans la nouvelle configuration provisionnée. Corrigé
+  en purgeant le volume Grafana (jetable, aucun dashboard/utilisateur manuel à préserver), pas en
+  éditant la base SQLite interne à la main. Vérifié de bout en bout sur trafic réel : requêtes
+  générées contre l'API → visibles dans `/metrics` → scrapées par Prometheus → interrogeables via
+  le proxy Grafana (p95 mesuré ≈ 95 ms, largement sous le seuil CDC).
 
 ## Pistes à évaluer plus tard
 

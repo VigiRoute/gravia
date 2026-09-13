@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 
 import mlflow
 from fastapi import FastAPI, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from gravia.config import get_settings
 from ml.mlflow_env import configure_s3_artifact_env
@@ -64,6 +65,14 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Expose /metrics (format Prometheus) : latence par endpoint, volume de requêtes, codes de
+# statut — déjà scrapé par `infra/prometheus/prometheus.yml` (job `gravia-api`) depuis la mise
+# en place de la stack dev, mais resté sans cible tant que ce endpoint n'existait pas (cf.
+# Architecture_GRAVIA.md §9, tableau de bord Grafana latence/erreurs/disponibilité promis mais
+# jamais livré). `instrument()` avant `expose()` : sans ça, les requêtes vers /metrics
+# elles-mêmes ne seraient pas instrumentées, `expose()` seul ne fait qu'ajouter la route.
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/health")

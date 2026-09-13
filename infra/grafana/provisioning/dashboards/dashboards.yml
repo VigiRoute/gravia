@@ -1,0 +1,12 @@
+# Charge automatiquement les dashboards JSON de ce dossier au démarrage de Grafana — pas de
+# configuration manuelle à refaire à chaque recréation du conteneur (même principe que la
+# source de données Prometheus provisionnée à côté).
+apiVersion: 1
+
+providers:
+  - name: GRAVIA
+    folder: ""
+    type: file
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

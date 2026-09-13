@@ -32,6 +32,7 @@ dependencies = [
     "fastapi==0.140.0",
     "uvicorn[standard]==0.51.0",
     "pydantic==2.13.4",
+    "prometheus-fastapi-instrumentator==8.1.0",
     # MLOps
     "mlflow==3.14.0",
     "great-expectations==1.19.1",

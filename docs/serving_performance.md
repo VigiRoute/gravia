@@ -90,6 +90,16 @@ régression logistique et Random Forest sont enveloppés dans un `sklearn.Pipeli
 ni à un `Pipeline` tel quel ni à un modèle linéaire — cohérent avec le fait que seul LightGBM est
 réellement déployé.
 
+## Suivi en direct (Grafana)
+
+Les mesures ci-dessus sont des instantanés (scripts lancés à la main). Pour un suivi continu,
+`ml/serving/api.py` expose `/metrics` (format Prometheus, `prometheus-fastapi-instrumentator`),
+scrapé par Prometheus (`infra/prometheus/prometheus.yml`, job `gravia-api`) et visualisé dans un
+dashboard Grafana provisionné automatiquement (`infra/grafana/provisioning/dashboards/`) :
+latence p50/p95 par endpoint (avec le seuil CDC ENF-1 à 300 ms en repère visuel), débit,
+taux d'erreur, disponibilité de la cible. Accessible sur `http://localhost:3000` (stack dev
+démarrée), identifiants par défaut `admin`/`admin`.
+
 ## Reproduire ces vérifications
 
 ```bash
