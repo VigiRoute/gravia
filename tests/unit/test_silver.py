@@ -43,6 +43,7 @@ def test_clean_caracteristiques_drops_precise_geolocation() -> None:
             "col": ["6"],
             "lat": ["48.85"],
             "long": ["2.35"],
+            "adr": ["56bis Avenue Raspail"],
         }
     )
 
@@ -50,6 +51,7 @@ def test_clean_caracteristiques_drops_precise_geolocation() -> None:
 
     assert "lat" not in result.columns
     assert "long" not in result.columns
+    assert "adr" not in result.columns
     assert result["lum"][0] == -1
 
 
@@ -60,6 +62,9 @@ def test_clean_lieux_dedups_and_normalizes_decimal_comma() -> None:
         {
             "Num_Acc": ["1", "1", "2"],
             "catr": ["3", "3", "1"],
+            "voie": ["A63", "A63", "RN10"],
+            "v1": ["63", "63", "10"],
+            "v2": ["", "", ""],
             "circ": ["2", "2", "1"],
             "nbv": ["2", "2", "4"],
             "vosp": ["0", "0", "0"],
@@ -82,6 +87,8 @@ def test_clean_lieux_dedups_and_normalizes_decimal_comma() -> None:
     assert result.filter(pl.col("Num_Acc") == "1")["lartpc"].item() == 1.5
     assert result.filter(pl.col("Num_Acc") == "2")["lartpc"].item() == -1.0
     assert result.filter(pl.col("Num_Acc") == "2")["larrout"].item() == 7.5
+    for col in ("voie", "v1", "v2", "pr", "pr1"):
+        assert col not in result.columns
 
 
 def test_add_age_bucket_covers_all_boundaries() -> None:
@@ -133,6 +140,7 @@ def test_clean_table_drops_blank_export_artifact_row(tmp_path) -> None:
             "col": ["6", None],
             "lat": ["48.85", None],
             "long": ["2.35", None],
+            "adr": ["56bis Avenue Raspail", None],
         }
     )
     source = bronze_path("caracteristiques", 2023, settings)

@@ -28,7 +28,8 @@ Estimer la probabilité qu'un accident signalé soit **grave** (au moins une vic
 ### 2.2 Données traitées
 | Type | Données | Statut |
 |---|---|---|
-| Personnelles | Âge, sexe, géolocalisation, motif de trajet | Pseudonymisées en Silver |
+| Personnelles | Âge (bucketé en tranche, `an_nais` supprimé) ; géolocalisation (`lat`/`long`/`adr`/`voie`/`v1`/`v2`/`pr`/`pr1` supprimées, seuls `dep`/`com` subsistent) | **Pseudonymisées en Silver** |
+| Personnelles, conservées telles quelles | Sexe (nécessaire à l'audit d'équité EC-6, cf. `docs/model_fairness.md`), motif de trajet | Non transformées — minimisation à réévaluer si `trajet` reste inutilisé en aval (vérifié : ni Gold ni le modèle ne le consomment) |
 | **Sensibles** | Gravité (donnée de santé) — **cible** | Accès strict |
 | Contextuelles | Date/heure, météo (déjà portée par le BAAC, `atm`), route, type de collision, véhicules — trafic DATEX exploré en batch, testé et écarté comme feature de modèle (cf. CDC §13.6) | Non personnelles |
 
@@ -41,7 +42,7 @@ Opérateurs de secours habilités, équipe data/IA (données pseudonymisées), D
 Cf. [plan de gouvernance §9](Gouvernance_GRAVIA.md). Données opérationnelles temps réel conservées le temps strictement nécessaire ; journaux de prédiction 12 mois.
 
 ### 2.5 Supports
-Stockage objet (S3/MinIO) chiffré, base PostgreSQL (RDS), conteneurs (Kubernetes), pipelines orchestrés (Airflow).
+Stockage objet (S3/MinIO), base PostgreSQL (RDS), conteneurs (Kubernetes), pipelines orchestrés (Airflow) — chiffrement au repos/transit prévu en cible, non déployé à ce jour (cf. §5).
 
 ### 2.6 Transferts hors UE
 Aucun (hébergement UE / local).
@@ -73,8 +74,8 @@ Aucun (hébergement UE / local).
 ### 4.1 Accès illégitime aux données
 - **Impact** : atteinte à la vie privée, révélation d'un état de santé (gravité).
 - **Sources de risque** : attaquant externe, accès interne abusif.
-- **Gravité** : *Importante* · **Vraisemblance** : *Limitée* (après mesures).
-- **Mesures** : chiffrement, moindre privilège, journalisation, cloisonnement.
+- **Gravité** : *Importante* · **Vraisemblance** : *Limitée* (après mise en œuvre complète du plan d'action §5).
+- **Mesures** : chiffrement, moindre privilège, journalisation, cloisonnement — statut réel détaillé en §5 (chiffrement et contrôle d'accès **à implémenter**, journalisation **partielle**, cloisonnement **fait**).
 
 ### 4.2 Modification non désirée des données
 - **Impact** : prédiction erronée → mauvaise priorisation des secours.
@@ -86,14 +87,14 @@ Aucun (hébergement UE / local).
 - **Impact** : indisponibilité du service d'aide à la décision.
 - **Sources** : panne, suppression accidentelle.
 - **Gravité** : *Limitée* · **Vraisemblance** : *Limitée*.
-- **Mesures** : sauvegardes testées, redondance, plan de reprise.
+- **Mesures** : sauvegardes testées, redondance, plan de reprise — **à implémenter** (cf. §5), non déployées à ce jour.
 
 ### 4.4 Risques spécifiques à l'IA
 
 | Risque IA | Description | Mesure |
 |---|---|---|
-| **Ré-identification** | Croisement lat/long + date + commune | Pseudonymisation, **agrégation géographique** |
-| **Biais / discrimination** | Scoring défavorable selon âge/sexe | **Tests d'équité** (equalized odds), atténuation, documentation |
+| **Ré-identification** | Croisement adresse/localisation précise + date + commune | **Fait** — `lat`/`long`/`adr`/`voie`/`pr`/`pr1` supprimées en Silver, seuls `dep`/`com` subsistent (cf. `src/gravia/silver.py`) |
+| **Biais / discrimination** | Scoring défavorable selon âge/sexe | **Tests d'équité faits et documentés** (`docs/model_fairness.md`) ; **atténuation non implémentée** — écart de FPR de 0,191 par tranche d'âge documenté comme point ouvert à trancher avant production (cf. CDC §13.7/§14) |
 | **Opacité** | Décision non comprise par l'opérateur | **Explicabilité SHAP** par prédiction |
 | **Sur-confiance** | Opérateur suit aveuglément le modèle | Human-in-the-loop, formation, affichage de l'incertitude |
 | **Dérive** | Perte de fiabilité dans le temps | Monitoring Evidently + réentraînement |
@@ -104,7 +105,7 @@ Aucun (hébergement UE / local).
 
 | Mesure | Statut | Responsable |
 |---|---|---|
-| Pseudonymisation dès la Silver | **Fait** — `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels | Architecte IA |
+| Pseudonymisation dès la Silver | **Fait** — `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels. Trouvé en auditant a posteriori : `adr` (adresse postale, quasi 100 % renseignée) et `voie`/`v1`/`v2`/`pr`/`pr1` (localisation métrique sur la route) restaient conservées telles quelles, contredisant cette mesure — corrigé, Silver régénéré sur les 5 millésimes, sans impact sur Gold/le modèle (vérifié : ces colonnes n'y sont pas consommées) | Architecte IA |
 | Agrégation géographique anti-ré-identification | **Fait** — localisation restant disponible via `dep`/`com` uniquement (cf. `silver.py`) | Architecte IA |
 | Chiffrement repos + transit | À implémenter — dev local sans TLS ; cible cloud (S3/RDS chiffrés, TLS) documentée mais non déployée (pas de budget cloud, cf. CLAUDE.md) | RSSI |
 | Contrôle d'accès moindre privilège | À implémenter — pas de séparation de rôles IAM/PostgreSQL en dev ; cible documentée | RSSI |
