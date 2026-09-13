@@ -10,13 +10,21 @@ quantités, et un cast numérique risquerait de tronquer un zéro de tête ou de
 Les codes appliqués ici sont vérifiés contre le dictionnaire officiel ONISR (cf. CLAUDE.md,
 section « Documentation de référence ») plutôt que devinés.
 
-Pseudonymisation (cf. CLAUDE.md, données personnelles et sensibles ; docs/AIPD_GRAVIA.md §4.2) :
-    - Géolocalisation : `lat`/`long` sont supprimées. La localisation reste disponible via
-      `dep`/`com`, déjà natifs BAAC à la granularité commune. Un simple arrondi de coordonnées a
-      été écarté : il resterait de la pseudonymisation réversible au sens RGPD (la donnée reste
-      personnelle), et ne garantit pas la non-individualisation dans les communes peu
-      accidentogènes (une coordonnée arrondie + date + commune peut rester le seul accident du
-      jour dans sa cellule). L'agrégation à la commune correspond au terme employé par l'AIPD.
+Pseudonymisation (cf. CLAUDE.md, données personnelles et sensibles ; docs/AIPD_GRAVIA.md §2.2/§5) :
+    - Géolocalisation : `lat`/`long` (caracteristiques) et `adr` (caracteristiques, adresse
+      postale en texte libre — ex. "56bis Avenue Raspail", renseignée sur la quasi-totalité des
+      lignes) sont supprimées, de même que `voie`/`v1`/`v2`/`pr`/`pr1` (lieux — nom de route et
+      point de repère métrique, une localisation aussi précise qu'une coordonnée une fois combinée
+      au numéro de route). Trouvé en auditant l'AIPD après coup : `adr` et le triplet route+pr+pr1
+      étaient conservés tels quels alors qu'ils réidentifient au moins aussi précisément qu'une
+      coordonnée arrondie — le vecteur de risque que l'AIPD nomme explicitement. Aucune des deux
+      couches n'est utilisée par `gravia.gold` ni par `ml/features` (vérifié), leur suppression ne
+      change aucun chiffre du modèle. La localisation reste disponible via `dep`/`com`, déjà
+      natifs BAAC à la granularité commune. Un simple arrondi de coordonnées a été écarté : il
+      resterait de la pseudonymisation réversible au sens RGPD (la donnée reste personnelle), et
+      ne garantit pas la non-individualisation dans les communes peu accidentogènes (une
+      coordonnée arrondie + date + commune peut rester le seul accident du jour dans sa cellule).
+      L'agrégation à la commune correspond au terme employé par l'AIPD.
     - Âge : `an_nais` est remplacé par une tranche d'âge (`tranche_age`), calculée à partir de
       `_millesime` (année de l'accident, déjà présente en provenance Bronze — cf. `gravia.bronze`)
       plutôt que via `caracteristiques.an`, ce qui évite une jointure inter-table pour une simple
@@ -76,14 +84,18 @@ LIEUX_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
     ("nbv", pl.Int16),
     ("vosp", pl.Int8),
     ("prof", pl.Int8),
-    ("pr", pl.Int32),
-    ("pr1", pl.Int32),
     ("plan", pl.Int8),
     ("surf", pl.Int8),
     ("infra", pl.Int8),
     ("situ", pl.Int8),
     ("vma", pl.Int16),
 )
+
+#: Localisation précise (nom de route + point de repère métrique), supprimée par
+#: pseudonymisation au même titre que `lat`/`long` (cf. docstring module) : `pr`/`pr1` combinés à
+#: `voie` localisent un accident à quelques dizaines de mètres, aussi précisément qu'une
+#: coordonnée.
+LIEUX_DROPPED_COLUMNS: tuple[str, ...] = ("voie", "v1", "v2", "pr", "pr1")
 
 #: Largeurs en mètres : certains millésimes utilisent la virgule décimale française. Traité à
 #: part de `LIEUX_INT_COLUMNS` car il faut normaliser le séparateur avant le cast.
@@ -130,7 +142,8 @@ AGE_BUCKET_UNKNOWN = "Inconnu"
 AGE_IMPLAUSIBLE_ABOVE = 110
 
 #: Colonnes de géolocalisation précise, supprimées par pseudonymisation (cf. docstring module).
-CARACTERISTIQUES_DROPPED_COLUMNS: tuple[str, ...] = ("lat", "long")
+#: `adr` (adresse postale en texte libre) réidentifie au moins aussi précisément que `lat`/`long`.
+CARACTERISTIQUES_DROPPED_COLUMNS: tuple[str, ...] = ("lat", "long", "adr")
 
 
 class MissingBronzeFileError(FileNotFoundError):
@@ -176,7 +189,7 @@ def clean_caracteristiques(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
-    """Nettoie la rubrique LIEUX : typage strict, largeurs décimales, dédoublonnage.
+    """Nettoie la rubrique LIEUX : typage, largeurs décimales, dédoublonnage, pseudonymisation.
 
     Un accident peut apparaître sur plusieurs lignes dans `lieux` (cf. CLAUDE.md, pièges de
     schéma BAAC) alors que la rubrique ne décrit qu'un seul lieu principal par accident. Faute de
@@ -187,7 +200,8 @@ def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
         df: Table Bronze `lieux` d'un millésime.
 
     Returns:
-        La table typée, une ligne par `Num_Acc`.
+        La table typée, une ligne par `Num_Acc`, sans `voie`/`v1`/`v2`/`pr`/`pr1`
+        (pseudonymisation — cf. docstring module).
     """
     df = cast_columns(df, LIEUX_INT_COLUMNS)
     df = df.with_columns(
@@ -199,7 +213,8 @@ def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
             for col in LIEUX_FLOAT_COLUMNS
         ]
     )
-    return df.unique(subset=["Num_Acc"], keep="first")
+    df = df.unique(subset=["Num_Acc"], keep="first")
+    return df.drop(LIEUX_DROPPED_COLUMNS)
 
 
 def clean_vehicules(df: pl.DataFrame) -> pl.DataFrame:
