@@ -6,17 +6,19 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-12 — CI GitHub Actions ajoutée (lint + tests, cf.
-`.github/workflows/ci.yml`).
+**Dernière mise à jour :** 2026-09-13 — tests d'équité du modèle (`ml/fairness`, CDC EC-6)
+implémentés et documentés (docs/model_fairness.md) : parité quasi parfaite par sexe, écart de
+faux positifs de 19 points entre tranches d'âge (0-17/65+ sur-signalés).
 
 ## En une phrase
 
 Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
 **Bronze → Silver → Quality → Gold est complet, testé et orchestré par Airflow**, chargé en base
-réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving` et
-`ml/monitoring` en place** — un modèle (LightGBM enriched) est entraîné, évalué, enregistré,
-**servi en temps réel** via une API FastAPI conteneurisée, et sa dérive (features + prédiction)
-est mesurable ; **CI (lint + tests) automatisée** ; le dépôt `gravia-mlops` reste à faire.
+réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving`,
+`ml/monitoring` et `ml/fairness` en place** — un modèle (LightGBM enriched) est entraîné,
+évalué, enregistré, **servi en temps réel** via une API FastAPI conteneurisée, sa dérive
+(features + prédiction) est mesurable et son équité (âge/sexe) est auditée ; **CI (lint + tests)
+automatisée** ; le dépôt `gravia-mlops` reste à faire.
 
 ## État par composant
 
@@ -290,6 +292,24 @@ est mesurable ; **CI (lint + tests) automatisée** ; le dépôt `gravia-mlops` r
   pas imposée comme gate ; le seuil CDC reste vérifié en local avec la stack complète, comme
   pratiqué depuis le début du projet. Monter Postgres/MLflow/MinIO en services CI pour lever cette
   limite reste une piste, pas traitée ici (complexité jugée disproportionnée pour l'instant).
+
+- **Tests d'équité du modèle** ([ml/fairness/audit.py](../ml/fairness/audit.py), CDC EC-6 :
+  « parité selon âge/sexe, equalized odds ») — [docs/model_fairness.md](model_fairness.md) pour
+  le détail complet. Attribut sensible : le conducteur (`catu == 1`), **limité aux accidents à
+  un seul conducteur identifié** (38 % du test 2023, 20 830/54 822 — la majorité des accidents
+  impliquent plusieurs véhicules donc plusieurs conducteurs, sans façon non arbitraire de n'en
+  retenir un seul ; retenir le blessé le plus grave aurait biaisé le test en sélectionnant sur
+  l'issue évaluée). Deux résultats réels, opposés :
+  - **Par sexe** : parité quasi parfaite (écart de rappel 0,007, écart de FPR 0,019).
+  - **Par tranche d'âge** : rappel homogène, mais **écart de FPR de 0,191** — conducteurs mineurs
+    (0-17, FPR=0,584) et seniors (65+, FPR=0,500) sur-signalés « grave » à tort près de deux fois
+    plus souvent que les 25-34 ans (FPR=0,393). Cohérent avec un taux de gravité réelle plus
+    élevé pour ces tranches, mais le modèle **amplifie** l'écart au-delà du taux réel.
+  **Aucun seuil pass/fail imposé** (le CDC n'en fixe pas pour l'équité, contrairement à
+  PSI/recall/F1/couverture) : le biais par âge est documenté comme tension non résolue à
+  arbitrer avant production, dans l'esprit de l'angle mort déjà documenté du seuil unique par
+  département — pas corrigé dans cette itération. 5 tests (4 unitaires, logique pure ; 1
+  intégration contre le vrai modèle `@staging`).
 
 ### 🚧 Pas commencé
 
