@@ -311,10 +311,22 @@ automatisée** ; le dépôt `gravia-mlops` reste à faire.
   département — pas corrigé dans cette itération. 5 tests (4 unitaires, logique pure ; 1
   intégration contre le vrai modèle `@staging`).
 
+- **Fix MLflow — `host.docker.internal` dans `--allowed-hosts`**
+  ([infra/docker-compose.yml](../infra/docker-compose.yml)) — découvert en déployant `serving`
+  sur un cluster K8s local (`kind`, cf. le dépôt
+  [`gravia-mlops`](https://github.com/VigiRoute/gravia-mlops)) : un Pod hors du réseau
+  docker-compose joint MLflow via `host.docker.internal`, publié sur l'hôte, mais ce nom n'était
+  pas dans la liste des hôtes autorisés — même 403 « Invalid Host header » que le fix
+  `--allowed-hosts` déjà documenté ci-dessus, cause différente. Chaque Pod crashait au démarrage
+  en tentant de charger le modèle `@staging` avant ce fix.
+
 ### 🚧 Pas commencé
 
-- **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — non entamé à ce stade du
-  suivi.
+- **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — **K8s démarré** :
+  manifests de déploiement du `serving` (Deployment/Service/ConfigMap/Secret), vérifiés sur un
+  vrai cluster local (`kind`) — scaling et auto-guérison testés en conditions réelles. Terraform/
+  LocalStack et les workflows de CD restent à faire. Détail dans le dépôt lui-même
+  (`gravia-mlops/CLAUDE.md`).
 
 ## Pistes à évaluer plus tard
 
