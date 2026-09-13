@@ -1,0 +1,39 @@
+# CD (moitié "construire" du couple gravia/gravia-mlops, cf. CLAUDE.md, organisation en deux
+# dépôts) : publie l'image `serving` sur GitHub Container Registry à chaque changement sur
+# `main` qui la concerne. `gravia-mlops` (déploiement, cf. son propre CLAUDE.md) consomme cette
+# image déjà construite — il n'a pas besoin du code source de `gravia` pour déployer.
+#
+# GHCR plutôt qu'ECR/Docker Hub : gratuit pour un dépôt privé via GITHUB_TOKEN (pas de compte
+# cloud payant, cohérent avec la contrainte budgétaire déjà posée pour LocalStack/kind), aucun
+# secret à gérer côté dépôt (le token est fourni automatiquement par Actions).
+name: Publish serving image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/gravia/**"
+      - "ml/**"
+      - "infra/serving/Dockerfile"
+      - "pyproject.toml"
+      - ".github/workflows/publish-serving-image.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connexion à GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build & push
+        run: |
+          IMAGE=ghcr.io/vigiroute/gravia-serving
+          docker build -f infra/serving/Dockerfile -t "$IMAGE:latest" -t "$IMAGE:${{ github.sha }}" .
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
