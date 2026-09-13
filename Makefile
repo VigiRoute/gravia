@@ -13,7 +13,7 @@ dev:  ## Démarrer la stack dev (Docker Compose)
 	@test -f .env || (echo "Pas de .env — copie depuis .env.example" && cp .env.example .env)
 	$(COMPOSE) up -d
 	@echo ""
-	@echo "  Airflow     http://localhost:8080  (admin / admin)"
+	@echo "  Airflow     http://localhost:8080  (pas d'identifiants — auth désactivée en dev)"
 	@echo "  MLflow      http://localhost:5000"
 	@echo "  MinIO       http://localhost:9001  (minioadmin / minioadmin)"
 	@echo "  Grafana     http://localhost:3000  (admin / admin)"

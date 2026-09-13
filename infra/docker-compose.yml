@@ -27,6 +27,15 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-gravia}:${POSTGRES_PASSWORD:-gravia}@postgres:5432/airflow
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-dev-secret-key-change-in-prod}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-dev-jwt-secret-change-in-prod}
+    # Airflow 3.x utilise SimpleAuthManager par défaut (pas FAB) : il génère un mot de passe
+    # aléatoire par utilisateur, imprimé une seule fois dans les logs au premier démarrage, sans
+    # moyen de le figer (constaté en lisant simple_auth_manager.py — pas de champ mot de passe
+    # dans `simple_auth_manager_users`, `_generate_password()` utilise `secrets` inconditionnellement).
+    # `airflow users create --password admin` (commande FAB) échouait donc silencieusement
+    # (`|| true`) et ne créait jamais l'utilisateur "admin/admin" documenté. En dev local
+    # mono-poste, désactiver l'authentification est plus simple que suivre un mot de passe
+    # généré à chaque recréation du volume Postgres.
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
     # Sans ceci, chaque tâche appelle son API d'exécution sur son défaut codé en dur
     # (http://localhost:8080/execution/, cf. airflow/executors/base_executor.py::
     # get_execution_api_server_url) — correct seulement si apiserver et exécuteur de tâche
@@ -178,10 +187,7 @@ services:
     <<: *airflow-common
     entrypoint: >
       /bin/bash -c "
-      airflow db migrate &&
-      airflow users create --username admin --password admin
-      --firstname Admin --lastname Local --role Admin --email admin@example.com
-      || true
+      airflow db migrate
       "
     restart: "no"
 
