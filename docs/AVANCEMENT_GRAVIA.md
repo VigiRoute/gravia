@@ -431,6 +431,35 @@ relèvent de la finition (présentation orale, vidéos de démonstration exigée
 relecture globale de la documentation) plutôt que de nouvelles fonctionnalités — à discuter avec
 l'utilisateur plutôt qu'à décider seul.
 
+## Annexe — Correspondance avec le référentiel (Blocs 3 et 4)
+
+Blocs 3 (pipelines) et 4 (solution IA) n'ont pas de document d'architecture dédié comme le Bloc 2
+(cf. [Architecture_GRAVIA.md](Architecture_GRAVIA.md), sa propre annexe en fin de document) : leurs
+preuves sont le code et les résultats vérifiés listés dans ce fichier. Annexe ajoutée après coup
+(audit de cohérence documentation/référentiel) pour éviter qu'une compétence attendue par le jury
+ne reste sans réponse préparée.
+
+### Bloc 3 — Pipelines de données
+
+| Compétence | Couverture |
+|---|---|
+| C3.1 — Concevoir un système de gestion de données temps réel adapté aux contraintes et normes opérationnelles | **Traité comme un choix de périmètre assumé, pas comme un système construit** : un bus de messages (Redpanda, compatible Kafka) est provisionné dans la stack dev pour démontrer la capacité attendue, mais aucun producteur/consommateur applicatif n'a été implémenté — décision documentée et justifiée, pas dissimulée (cf. [CDC_GRAVIA.md](CDC_GRAVIA.md) §6.4, [Architecture_GRAVIA.md](Architecture_GRAVIA.md) §2.3/§3). Le service réellement exposé en production simulée est l'API REST synchrone (`POST /v1/predict-severity`), pas un flux d'événements. |
+| C3.2 — Établir un pipeline ETL/ELT (transfert et transformation) | Bronze → Silver → Gold, indépendant par table puis joint (`src/gravia/bronze.py`, `silver.py`, `gold.py`) — section « Pipeline de données » ci-dessus |
+| C3.3 — Automatiser les flux de données (outils/programmation) | DAG Airflow `etl_medallion_baac` (`pipelines/airflow/dags/etl_medallion_dag.py`), un groupe de tâches par millésime, vérifié en exécution réelle bout en bout |
+| C3.4 — Surveiller les flux pour la qualité et la gouvernance | Tâche `quality` du DAG (Great Expectations, cf. section « Couche Quality » ci-dessus) ; monitoring infra Prometheus/Grafana (section « Dashboard Grafana ») |
+| C3.5 — Développer des procédures de contrôle qualité et de correction des erreurs | `src/gravia/quality.py::SilverQualityError` bloque la promotion vers Gold sur non-conformité (échec de tâche, pas de passage silencieux) ; suite de tests dédiée |
+
+### Bloc 4 — Solution IA
+
+| Compétence | Couverture |
+|---|---|
+| C4.1 — Rédiger un cahier des charges pour la solution IA | [CDC_GRAVIA.md](CDC_GRAVIA.md) dans son ensemble |
+| C4.2 — Créer un algorithme IA adapté aux données et conforme au CDC | Benchmark 3 familles de modèles, LightGBM enriched retenu (recall 0,807/F1 0,727) — section « Entraînement / benchmark de modèles » ; [ml_training_results.md](ml_training_results.md) |
+| C4.3 — Adapter l'infrastructure via construction d'API | `POST /v1/predict-severity` (`ml/serving/`), vérifié en conteneur réel — section « Serving » |
+| C4.4 — Concevoir des pipelines CI/CD pour automatiser le déploiement | CI lint+tests (`gravia/.github/workflows/ci.yml`) ; publication d'image (`publish-serving-image.yml`) ; déploiement Terraform+K8s (`gravia-mlops/.github/workflows/deploy.yml`) |
+| C4.5 — Développer des scripts de réentraînement pour automatiser le ML | `gravia/.github/workflows/retrain.yml` — section « Réentraînement planifié » |
+| C4.6 — Piloter la performance via des outils de monitoring (Evidently) | `ml/monitoring/drift.py` (PSI sur 24 features, vérifié sur données réelles) — section « Monitoring » ; dashboard Grafana (latence/débit/erreurs) |
+
 ## Comment relancer le contexte dans un nouveau chat
 
 1. Ce fichier donne le *où on en est*.

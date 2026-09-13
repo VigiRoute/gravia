@@ -200,3 +200,15 @@ Procédure en cas de violation :
 - Loi n° 78-17 Informatique et Libertés
 - ISO/IEC 27001 · Recommandations ANSSI · RGAA
 - Méthodologie AIPD — CNIL
+
+---
+
+## Annexe — Correspondance avec le référentiel (Bloc 1)
+
+| Compétence | Couverture dans ce document |
+|---|---|
+| C1.1 — Concevoir une politique de Data Gouvernance avec les parties prenantes | Ce document dans son ensemble ; parties prenantes impliquées §5 |
+| C1.2 — Collaborer avec les parties prenantes pour intégrer la politique | §5 (rôles, matrice RACI) |
+| C1.3 — Former et sensibiliser les collaborateurs, y compris en situation de handicap | §13 |
+| C1.4 — Réaliser des audits réguliers de conformité | §12 |
+| C1.5 — Évaluer les risques (qualité, sécurité) | §14 ; risques spécifiques aux données de santé et à l'IA détaillés dans l'[AIPD](AIPD_GRAVIA.md) §4 |
