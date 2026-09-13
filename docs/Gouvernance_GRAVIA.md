@@ -120,6 +120,8 @@ Tout lot non conforme est **rejeté ou mis en quarantaine** et signalé au data 
 | Cloisonnement | Séparation des environnements dev / prod |
 | Journalisation | Logs d'accès et de prédictions horodatés |
 
+> **Portée de « authentification forte »** : cette politique vise la **surface exposée** — l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut — `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée (CLAUDE.md) — pas une dérogation silencieuse à la politique de sécurité de production.
+
 ## 8. Disponibilité et continuité
 
 - Objectif de disponibilité de l'API : ≥ 99,5 %/mois.
