@@ -88,7 +88,8 @@ gravia/
 │   ├── features/            # feature engineering (anti-leakage)
 │   ├── training/            # entraînement & benchmark de modèles
 │   ├── serving/             # FastAPI /v1/predict-severity
-│   └── monitoring/          # Evidently (dérive)
+│   ├── monitoring/          # Evidently (dérive)
+│   └── fairness/            # tests d'équité (EC-6 : parité âge/sexe, equalized odds)
 ├── pipelines/airflow/dags/  # DAGs du pipeline de données
 ├── data/
 │   ├── expectations/        # Great Expectations
