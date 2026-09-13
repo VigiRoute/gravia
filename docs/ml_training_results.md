@@ -48,6 +48,11 @@ toutes configurations confondues — promu à l'alias `staging`** (`gravia-sever
 2026-08-27, décision explicite de l'utilisateur). Rechargé après promotion et revérifié :
 `mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
 
+![Recall et F1 macro des 3 modèles, config baseline vs enriched](img/benchmark_recall_f1.png)
+
+*Généré par [`docs/generate_result_charts.py`](generate_result_charts.py) à partir des chiffres
+ci-dessus (`python -m docs.generate_result_charts`).*
+
 ## Latence de prédiction pure des 3 candidats
 
 Le benchmark ci-dessus compare recall/F1, pas la vitesse — un modèle moins bon aurait pu rester

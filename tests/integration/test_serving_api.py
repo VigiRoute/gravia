@@ -99,3 +99,15 @@ def test_predict_severity_rejects_missing_required_field(client) -> None:
     response = client.post("/v1/predict-severity", json=incomplete_payload)
 
     assert response.status_code == 422
+
+
+def test_metrics_exposes_prometheus_format(client) -> None:
+    """Cible scrapée par Prometheus (`infra/prometheus/prometheus.yml`, job `gravia-api`),
+    consommée par le dashboard Grafana (`infra/grafana/provisioning/dashboards/`)."""
+    client.post("/v1/predict-severity", json=_VALID_PAYLOAD)
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert 'handler="/v1/predict-severity"' in response.text
+    assert "http_request_duration_seconds_bucket" in response.text

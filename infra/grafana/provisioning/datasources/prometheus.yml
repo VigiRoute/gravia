@@ -5,6 +5,10 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    # uid fixe : le dashboard provisionné (cf. provisioning/dashboards/) référence cet uid
+    # explicitement — sans lui, Grafana en génère un aléatoire à chaque recréation du volume,
+    # et le dashboard perdrait sa source de données au prochain démarrage.
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
