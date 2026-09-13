@@ -1,0 +1,64 @@
+# Réentraînement planifié (CDC EF-6 : « le système réentraîne le modèle sur nouveau millésime
+# ou sur détection de dérive »), dernier morceau du CD (cf. CLAUDE.md, structure du dépôt :
+# ".github/workflows/ # CI de la solution" côté gravia, "réentraînement planifié" côté
+# gravia-mlops — placé ici plutôt que dans gravia-mlops, car il appelle directement
+# `ml.training.benchmark`, déjà écrit et validé dans ce dépôt : pas besoin d'un checkout
+# cross-repo pour l'exécuter, contrairement au déploiement K8s/Terraform).
+#
+# Déclencheur réel visé par le CDC : un nouveau millésime BAAC publié ou une dérive détectée
+# (cf. ml/monitoring/drift.py) — événementiel, pas un calendrier fixe (même raisonnement déjà
+# posé pour le DAG Airflow : "les millésimes BAAC sont publiés annuellement, pas de cadence à
+# automatiser pour l'instant", cf. pipelines/airflow/dags/etl_medallion_dag.py). Le `schedule`
+# ci-dessous est donc volontairement peu fréquent (trimestriel) — un filet de sécurité
+# illustrant la capacité « réentraînement planifié » exigée, pas le déclencheur principal. En
+# pratique : `workflow_dispatch` manuel (nouveau millésime disponible) ou appelé par une future
+# intégration ml/monitoring -> API GitHub sur dérive détectée (non câblée ici).
+#
+# Portée assumée, même limite que gravia-mlops/.github/workflows/deploy.yml (cf. son propre
+# CLAUDE.md) : ce runner GitHub-hosted éphémère n'a pas accès à un MLflow/PostgreSQL persistant
+# avec les données Gold réelles (contrairement à la stack dev locale). Le réentraînement réel ne
+# peut donc avoir lieu que si ce workflow tourne avec ces services réellement joignables (ex. un
+# self-hosted runner pointé vers une vraie stack, ou une cible cloud persistante — hors budget de
+# ce projet). Vérifié plutôt que supposé : une étape dédiée sonde la connexion et le job s'arrête
+# proprement (pas un échec) si l'infra manque, au lieu de laisser `ml.training.benchmark` planter
+# sur une erreur de connexion.
+name: Retrain
+
+on:
+  schedule:
+    - cron: "0 3 1 */3 *"
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    env:
+      MLFLOW_HTTP_REQUEST_MAX_RETRIES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ".[dev]"
+
+      # Une seule ligne (pas de heredoc multi-ligne) : les blocs `run: |` YAML imposent une
+      # indentation minimale à toutes leurs lignes, incompatible avec l'indentation nulle
+      # qu'exige un script Python top-level — constaté en testant avant de pousser.
+      - name: Vérifier que MLflow/PostgreSQL sont réellement joignables
+        id: check
+        run: |
+          python -c "from gravia.config import get_settings; import sqlalchemy as sa, mlflow; s = get_settings(); mlflow.set_tracking_uri(s.mlflow_tracking_uri); mlflow.MlflowClient().search_experiments(max_results=1); sa.create_engine(s.database.url).connect().close()" \
+            && echo "reachable=true" >> "$GITHUB_OUTPUT" \
+            || echo "reachable=false" >> "$GITHUB_OUTPUT"
+
+      - name: Réentraîner et promouvoir si les seuils CDC sont atteints
+        if: steps.check.outputs.reachable == 'true'
+        run: python -m ml.training.benchmark
+
+      - name: Infra non joignable — réentraînement ignoré (normal sur ce runner)
+        if: steps.check.outputs.reachable != 'true'
+        run: |
+          echo "MLflow/PostgreSQL non joignables depuis ce runner GitHub-hosted éphémère."
+          echo "Attendu : pas de stack dev persistante reachable ici (cf. commentaire du workflow)."
+          echo "Ce job réentraînerait réellement sur un runner pointé vers une vraie stack MLflow/PostgreSQL."
