@@ -6,9 +6,8 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-13 — tests d'équité du modèle (`ml/fairness`, CDC EC-6)
-implémentés et documentés (docs/model_fairness.md) : parité quasi parfaite par sexe, écart de
-faux positifs de 19 points entre tranches d'âge (0-17/65+ sur-signalés).
+**Dernière mise à jour :** 2026-09-13 — dépôt `gravia-mlops` démarré : K8s (`kind`) et Terraform
+(LocalStack) faits et vérifiés sur infra réelle, seule la CD reste à faire.
 
 ## En une phrase
 
@@ -18,7 +17,8 @@ réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/ser
 `ml/monitoring` et `ml/fairness` en place** — un modèle (LightGBM enriched) est entraîné,
 évalué, enregistré, **servi en temps réel** via une API FastAPI conteneurisée, sa dérive
 (features + prédiction) est mesurable et son équité (âge/sexe) est auditée ; **CI (lint + tests)
-automatisée** ; le dépôt `gravia-mlops` reste à faire.
+automatisée** ; le dépôt **`gravia-mlops`** a son K8s (`kind`) et son Terraform (LocalStack)
+faits et vérifiés — ne reste que la CD.
 
 ## État par composant
 
@@ -320,13 +320,23 @@ automatisée** ; le dépôt `gravia-mlops` reste à faire.
   `--allowed-hosts` déjà documenté ci-dessus, cause différente. Chaque Pod crashait au démarrage
   en tentant de charger le modèle `@staging` avant ce fix.
 
+- **Dépôt `gravia-mlops`** — K8s et Terraform faits, CD restant. Détail complet dans le dépôt
+  lui-même (`gravia-mlops/CLAUDE.md`) :
+  - **K8s** : manifests de déploiement du `serving` (Deployment/Service/ConfigMap/Secret),
+    vérifiés sur un vrai cluster local (`kind`, choisi car LocalStack Community ne supporte même
+    pas ECR) — scaling et auto-guérison testés en conditions réelles.
+  - **Terraform** : un module par responsabilité (network/storage/compute/mlops, cf.
+    `Architecture_GRAVIA.md` §6.2). Constaté en interrogeant l'API LocalStack directement :
+    **ECR et RDS sont réservés à la licence Pro** (403 "not included within your LocalStack
+    license"), seuls S3/IAM/EC2/KMS/STS/Secrets Manager sont gratuits — les ressources RDS/ECR/
+    EKS restent écrites (exigence CDC d'une architecture AWS documentée) mais conditionnées
+    (`var.include_pro_only_services`, jamais activée contre LocalStack). 14 ressources créées et
+    vérifiées individuellement via `awslocal` (pas seulement l'état Terraform) ; idempotence
+    confirmée.
+
 ### 🚧 Pas commencé
 
-- **Dépôt `gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — **K8s démarré** :
-  manifests de déploiement du `serving` (Deployment/Service/ConfigMap/Secret), vérifiés sur un
-  vrai cluster local (`kind`) — scaling et auto-guérison testés en conditions réelles. Terraform/
-  LocalStack et les workflows de CD restent à faire. Détail dans le dépôt lui-même
-  (`gravia-mlops/CLAUDE.md`).
+- **CD** (`gravia-mlops/.github/workflows/`) — déploiement automatisé, réentraînement planifié.
 
 ## Pistes à évaluer plus tard
 
@@ -344,8 +354,9 @@ automatisée** ; le dépôt `gravia-mlops` reste à faire.
 
 ## Prochaine étape probable
 
-Il ne reste que le dépôt **`gravia-mlops`** (Terraform/LocalStack, manifests K8s, CD) — une
-exigence de certification distincte (second dépôt), pas juste une tâche technique.
+Il ne reste que la **CD** dans `gravia-mlops` (`.github/workflows/`) : déploiement automatisé
+(build + push des images, `kubectl apply`/`terraform apply` en CI) et réentraînement planifié.
+K8s et Terraform sont faits et vérifiés — c'est le dernier morceau du second dépôt.
 
 ## Comment relancer le contexte dans un nouveau chat
 
