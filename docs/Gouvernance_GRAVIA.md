@@ -2,8 +2,8 @@
 
 > **Projet** : GRAVIA — Aide à la décision pour la priorisation des secours routiers
 > **Organisation (fictive)** : VigiRoute — opérateur d'intérêt public
-> **Version** : 0.1
-> **Date** : 2026-06-29
+> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, périmètre réel confirmé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Date de dernière révision** : 2026-09-13
 > **Bloc RNCP** : Bloc 1 — Piloter la gouvernance des données
 > **Documents liés** : [Cahier des charges](CDC_GRAVIA.md) · [Architecture](Architecture_GRAVIA.md) · [AIPD](AIPD_GRAVIA.md)
 
@@ -47,7 +47,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 
 | Catégorie | Exemples | Niveau de sensibilité | Traitement |
 |---|---|---|---|
-| Données non personnelles | Conditions météo, **trafic temps réel** (testé puis écarté comme feature de modèle), type de route, type de collision | Public | Libre |
+| Données non personnelles | Conditions météo (déjà portées par le BAAC), trafic DATEX exploré en batch (testé puis écarté comme feature de modèle), type de route, type de collision | Public | Libre |
 | **Données personnelles** | Âge, sexe, géolocalisation précise, motif de trajet | Restreint | Pseudonymisation |
 | **Données sensibles (art. 9 RGPD)** | **Gravité = donnée de santé** | Confidentiel | Accès strict, AIPD |
 | Données opérationnelles (prod) | Signalement temps réel d'une victime identifiable | Confidentiel | Chiffrement, accès strict, traçabilité |

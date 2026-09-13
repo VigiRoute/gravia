@@ -2,8 +2,8 @@
 
 > **Traitement** : Prédiction de la gravité d'un accident pour l'aide à la priorisation des secours
 > **Responsable de traitement (fictif)** : VigiRoute
-> **Version** : 0.1
-> **Date** : 2026-06-29
+> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, statut réel des mesures confirmé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Date de dernière révision** : 2026-09-13
 > **Méthodologie** : CNIL (description · nécessité/proportionnalité · risques · mesures)
 > **Documents liés** : [Plan de gouvernance](Gouvernance_GRAVIA.md) · [Cahier des charges](CDC_GRAVIA.md)
 
@@ -30,7 +30,7 @@ Estimer la probabilité qu'un accident signalé soit **grave** (au moins une vic
 |---|---|---|
 | Personnelles | Âge, sexe, géolocalisation, motif de trajet | Pseudonymisées en Silver |
 | **Sensibles** | Gravité (donnée de santé) — **cible** | Accès strict |
-| Contextuelles | Date/heure, météo, **trafic temps réel** (testé puis écarté comme feature de modèle), route, type de collision, véhicules | Non personnelles |
+| Contextuelles | Date/heure, météo (déjà portée par le BAAC, `atm`), route, type de collision, véhicules — trafic DATEX exploré en batch, testé et écarté comme feature de modèle (cf. CDC §13.6) | Non personnelles |
 
 **Minimisation** : les identifiants directs ne sont pas utilisés ; les variables connues seulement après enquête (équipement, blessures détaillées) sont **exclues** (anti-leakage).
 
@@ -104,16 +104,16 @@ Aucun (hébergement UE / local).
 
 | Mesure | Statut | Responsable |
 |---|---|---|
-| Pseudonymisation dès la Silver | À implémenter | Architecte IA |
-| Agrégation géographique anti-ré-identification | À implémenter | Architecte IA |
-| Chiffrement repos + transit | À implémenter | RSSI |
-| Contrôle d'accès moindre privilège | À implémenter | RSSI |
-| Tests d'équité et atténuation des biais | À implémenter | Architecte IA |
-| Explicabilité SHAP exposée via l'API | À implémenter | Architecte IA |
-| Human-in-the-loop garanti | Conception | Architecte IA / Métier |
-| Monitoring dérive (Evidently) | À implémenter | Architecte IA |
+| Pseudonymisation dès la Silver | **Fait** — `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels | Architecte IA |
+| Agrégation géographique anti-ré-identification | **Fait** — localisation restant disponible via `dep`/`com` uniquement (cf. `silver.py`) | Architecte IA |
+| Chiffrement repos + transit | À implémenter — dev local sans TLS ; cible cloud (S3/RDS chiffrés, TLS) documentée mais non déployée (pas de budget cloud, cf. CLAUDE.md) | RSSI |
+| Contrôle d'accès moindre privilège | À implémenter — pas de séparation de rôles IAM/PostgreSQL en dev ; cible documentée | RSSI |
+| Tests d'équité et atténuation des biais | **Partiellement fait** — tests faits et vérifiés sur données réelles (`ml/fairness/audit.py`, [docs/model_fairness.md](model_fairness.md)) ; **atténuation non faite**, tension documentée comme point ouvert à trancher avant production | Architecte IA |
+| Explicabilité SHAP exposée via l'API | **Fait** — vérifié en conteneur réel (`ml/serving/`, top 5 contributions dans la réponse) | Architecte IA |
+| Human-in-the-loop garanti | **Fait** — l'API renvoie une probabilité + explication, ne déclenche aucune action de dispatching | Architecte IA / Métier |
+| Monitoring dérive (Evidently) | **Fait** — vérifié sur données et modèle réels (`ml/monitoring/drift.py`), PSI mesuré sur 24 features | Architecte IA |
 | Sauvegardes testées + plan de reprise | À implémenter | RSSI |
-| Registre des prédictions (12 mois) | À implémenter | Architecte IA |
+| Registre des prédictions (12 mois) | À implémenter — prédictions journalisées en logs structurés, pas de stockage persistant interrogeable sur 12 mois | Architecte IA |
 
 ---
 
