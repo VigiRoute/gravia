@@ -4,10 +4,17 @@ Scripts d'exploration ayant produit les résultats et les décisions cités dans
 [CDC](../docs/CDC_GRAVIA.md) (§13.6-7), l'[architecture](../docs/Architecture_GRAVIA.md) et la
 [présentation](../docs/Presentation_Projet_GRAVIA_Jedha.md) (Bloc 4).
 
-Chaque script est **autonome et rejouable** (il télécharge ses propres données dans
-`data/raw/`, non versionné) et documente ses résultats dans son docstring d'en-tête. Ils sont
-volontairement séparés du code de production (`ml/`, `pipelines/`) : ce sont des explorations
-tracées, pas des composants de la solution.
+Chaque script documente ses résultats dans son docstring d'en-tête et est volontairement séparé
+du code de production (`ml/`, `pipelines/`) : ce sont des explorations tracées, pas des
+composants de la solution. Ce sont des scripts `.py` rejouables en ligne de commande — **pas
+des notebooks Jupyter** (`.ipynb`) et **sans visualisation** (les seuls graphiques du projet
+portent sur des résultats déjà obtenus, générés par `docs/generate_result_charts.py`, pas sur
+l'exploration des données elle-même). Seuls 3 scripts téléchargent leurs propres données
+(`explo_trafic_datex_national.py`, `explo_trafic_tmja_national.py`,
+`explo_trafic_paris_correlation_annuel.py`) ; les 6 autres — dont `eda_baseline_baac.py`, qui
+porte les chiffres de référence cités dans tout le projet — lisent les CSV BAAC déjà présents
+dans `data/raw/baac/` (à télécharger manuellement depuis data.gouv.fr, cf. lien CDC) et échouent
+sinon.
 
 ## 1. Baseline de référence
 
@@ -21,7 +28,7 @@ tracées, pas des composants de la solution.
 |---|---|---|
 | [`explo_trafic_datex_national.py`](explo_trafic_datex_national.py) | Le flux DATEX II national est-il exploitable ? | Mesures propres, mais **temps réel uniquement** (pas d'archive) et table de sites décalée → jointure spatiale, 61 % des sites géolocalisables |
 | [`explo_trafic_tmja_national.py`](explo_trafic_tmja_national.py) | Le TMJA fournit-il l'historique manquant ? | Historique réel (2007→2024) mais **~1,6 % de couverture BAAC** (réseau non concédé seulement) |
-| [`explo_trafic_paris_correlation.py`](explo_trafic_paris_correlation.py) | Les capteurs Paris se joignent-ils au BAAC ? | **96 %** de rattachement sur une semaine test |
+| [`explo_trafic_paris_correlation.py`](explo_trafic_paris_correlation.py) | Les capteurs Paris se joignent-ils au BAAC ? | **96 %** de rattachement temporel sur une semaine test — **mais valeur réellement exploitable (débit/taux d'occupation non nuls) : ~46-53 % seulement**, corrigé dans `eval_trafic_gain_paris.py` (le rattachement temporel n'est pas la couverture utile) |
 | [`explo_trafic_paris_correlation_annuel.py`](explo_trafic_paris_correlation_annuel.py) | Le signal tient-il sur une année complète ? | Corrélation **statistiquement significative** (occupation plus faible chez les accidents graves, Welch p≈0,03) |
 | [`eval_trafic_gain_paris.py`](eval_trafic_gain_paris.py) | Ce signal améliore-t-il un modèle dédié Paris ? | **Non** : recall +0,007, F1 macro −0,013 |
 | [`eval_trafic_gain_national.py`](eval_trafic_gain_national.py) | Et en feature sparse sur le modèle national (config prod) ? | **Non** : recall +0,001, F1 −0,000 |

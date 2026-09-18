@@ -124,7 +124,7 @@ def main() -> None:
     )
     for concurrency in (1, 5, 10, 25, 50):
         result = run_load(concurrency=concurrency, total_requests=max(100, concurrency * 4))
-        gate = "OK" if result["p95_ms"] < TARGET_P95_MS else "SOUS SEUIL CDC"
+        gate = "OK" if result["p95_ms"] < TARGET_P95_MS else "AU-DESSUS DU SEUIL CDC"
         print(
             f"concurrency={result['concurrency']:3.0f}  requests={result['requests']:4.0f}  "
             f"errors={result['errors']:.0f}  throughput={result['throughput_rps']:6.1f} req/s  "
