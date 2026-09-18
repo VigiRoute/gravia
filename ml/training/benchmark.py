@@ -372,6 +372,7 @@ def register_best(best: dict[str, Any]) -> str | None:
 
 def main() -> None:
     """Point d'entrée en ligne de commande."""
+    import argparse
     import sys
 
     from gravia.config import get_settings
@@ -379,13 +380,33 @@ def main() -> None:
 
     sys.stdout.reconfigure(encoding="utf-8")
 
+    # Défaut "enriched", pas "baseline" : c'est la config réellement déployée à l'alias
+    # `staging` (cf. ml/serving/model.py::FEATURE_SET, docs/ml_training_results.md). Trouvé en
+    # auditant : ce point d'entrée est aussi celui appelé par .github/workflows/retrain.yml —
+    # un réentraînement réel avec l'ancien défaut "baseline" aurait promu un modèle à 20
+    # features par-dessus le modèle à 24 features attendu par le serving, cassant la prédiction.
+    parser = argparse.ArgumentParser(description="Benchmark et (ré)entraînement GRAVIA.")
+    parser.add_argument(
+        "--feature-set",
+        choices=["baseline", "enriched"],
+        default="enriched",
+        help="Configuration de features (défaut : enriched, la config réellement déployée). "
+        "'baseline' ne reproduit que la référence historique (CLAUDE.md) — l'utiliser pour un "
+        "réentraînement réel promouvrait un modèle à 20 features par-dessus celui à 24 features "
+        "attendu par ml/serving/model.py.",
+    )
+    args = parser.parse_args()
+
     settings = get_settings()
     configure_s3_artifact_env(settings)
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     engine = sa.create_engine(settings.database.url)
 
-    print("Entraînement (train 2019-2021 / validation 2022 / test 2023)...")
-    results = run_benchmark(engine, feature_set="baseline")
+    print(
+        f"Entraînement (train 2019-2021 / validation 2022 / test 2023, "
+        f"config={args.feature_set})..."
+    )
+    results = run_benchmark(engine, feature_set=args.feature_set)
 
     print("\nRésultats (seuil calibré sur validation, évalué sur le holdout 2023) :")
     for r in results:
