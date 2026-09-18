@@ -30,6 +30,12 @@ from ml.serving.model import LoadedModel, load_staged_model, predict_severity
 from ml.serving.schemas import PredictSeverityRequest, PredictSeverityResponse
 from ml.training.benchmark import REGISTERED_MODEL_NAME
 
+# Sans ceci, le logger reste à son niveau effectif par défaut (WARNING, hérité de la racine
+# sans handler) et les logger.info() ci-dessous n'émettent jamais rien — constaté en audit sur
+# le conteneur réel : une prédiction ne produisait que la ligne d'accès uvicorn, jamais la ligne
+# "prédiction ...". uvicorn configure ses propres loggers nommés (uvicorn.error/access) sans
+# toucher à celui-ci.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("gravia.serving")
 
 _state: dict[str, LoadedModel] = {}
