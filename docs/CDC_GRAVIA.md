@@ -123,6 +123,7 @@ Ce choix découle du besoin métier (l'opérateur dimensionne les secours pour l
 ### 6.2 Volumétrie
 - Ordre de grandeur théorique : plusieurs millions de lignes `usagers` sur ~20 ans (~50–60k accidents/an).
 - **Périmètre réellement ingéré à ce jour** : 5 millésimes (2019-2023), **273 226 accidents**, ~600k lignes `usagers` — chargé et vérifié dans PostgreSQL (cf. `AVANCEMENT_GRAVIA.md`).
+- **Pourquoi pas avant 2019** : l'indicateur « blessé hospitalisé » (`grav=3`, utilisé dans `is_grave`) n'est plus labellisé de la même façon par la statistique publique depuis 2019 et n'est pas comparable avant/après 2018 (changement de process de saisie des forces de l'ordre, cf. CLAUDE.md, pièges de schéma BAAC). Mélanger pré/post-2019 entraînerait le modèle sur une cible dont la définition change en cours de route — plus risqué que d'avoir moins d'années mais une cible cohérente. Choix méthodologique raisonné, non testé empiriquement (un test comparatif serait lui-même faussé par cette même rupture de définition).
 
 ### 6.3 Données personnelles et sensibles
 - **Données personnelles** : âge, sexe, géolocalisation précise, motif de trajet.
