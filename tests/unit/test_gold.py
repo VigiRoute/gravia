@@ -103,6 +103,26 @@ def test_aggregate_usagers_label_and_pedestrian_flag() -> None:
     assert acc2["flag_pieton"].item() is False
 
 
+def test_aggregate_usagers_all_null_grav_yields_null_not_false() -> None:
+    """`.any()` sur un groupe Polars entièrement null renvoie `False`, pas `null` (constaté en
+    testant) : un accident dont tous les usagers ont un `grav` illisible ne doit pas être
+    silencieusement classé "non grave" — `is_grave` doit rester `null` pour déclencher
+    `MissingUsagersError` dans `build_fact_frame`, comme un accident sans usager du tout."""
+    df = pl.DataFrame(
+        {
+            "Num_Acc": ["1", "1", "2"],
+            "grav": [None, None, 2],
+            "catu": [1, 1, 1],
+        },
+        schema_overrides={"grav": pl.Int8, "catu": pl.Int8},
+    )
+
+    result = aggregate_usagers(df).sort("Num_Acc")
+
+    assert result.filter(pl.col("Num_Acc") == "1")["is_grave"].item() is None
+    assert result.filter(pl.col("Num_Acc") == "2")["is_grave"].item() is True
+
+
 def test_build_fact_frame_joins_tables_and_derives_dimensions(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     caract = pl.DataFrame(

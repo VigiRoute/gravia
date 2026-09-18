@@ -7,14 +7,52 @@ Scripts d'exploration ayant produit les résultats et les décisions cités dans
 Chaque script documente ses résultats dans son docstring d'en-tête et est volontairement séparé
 du code de production (`ml/`, `pipelines/`) : ce sont des explorations tracées, pas des
 composants de la solution. Ce sont des scripts `.py` rejouables en ligne de commande — **pas
-des notebooks Jupyter** (`.ipynb`) et **sans visualisation** (les seuls graphiques du projet
-portent sur des résultats déjà obtenus, générés par `docs/generate_result_charts.py`, pas sur
-l'exploration des données elle-même). Seuls 3 scripts téléchargent leurs propres données
+des notebooks Jupyter** (`.ipynb`). La plupart n'ont pas de visualisation (résultats imprimés en
+console dans le docstring) ; `eda_raw_baac.py` et `eda_exploration_baac.py` (§0a/§0b ci-dessous)
+sont l'exception : une vraie EDA visuelle, sur le brut puis sur Gold déjà nettoyé. Seuls 3
+scripts téléchargent leurs propres données
 (`explo_trafic_datex_national.py`, `explo_trafic_tmja_national.py`,
-`explo_trafic_paris_correlation_annuel.py`) ; les 6 autres — dont `eda_baseline_baac.py`, qui
-porte les chiffres de référence cités dans tout le projet — lisent les CSV BAAC déjà présents
-dans `data/raw/baac/` (à télécharger manuellement depuis data.gouv.fr, cf. lien CDC) et échouent
-sinon.
+`explo_trafic_paris_correlation_annuel.py`) ; les autres — dont `eda_baseline_baac.py`, qui
+porte les chiffres de référence cités dans tout le projet — lisent les CSV/Parquet BAAC déjà
+présents dans `data/raw/baac/`/`data/bronze/baac/` (à produire au préalable, cf. lien CDC pour
+le CSV source et `python -m gravia.bronze` pour Bronze) et échouent sinon.
+
+## 0a. EDA sur les données BRUTES (Bronze) — audite les décisions de nettoyage
+
+[`eda_raw_baac.py`](eda_raw_baac.py) — contrairement à tout le reste de ce dossier, l'EDA
+classique doit précéder les décisions de nettoyage, pas seulement valider leurs résultats après
+coup. Ce script lit Bronze (le CSV source, sans aucune transformation) pour vérifier que ce que
+`gravia.silver`/`gravia.gold` ont décidé de faire correspond réellement au brut. Nécessite les
+Parquet Bronze déjà produits (`python -m gravia.bronze`).
+
+**Deux vraies trouvailles, corrigées dans le code de production (pas seulement documentées) :**
+1. `lieux.nbv` contient des artefacts Excel non résolus (`#ERREUR`, `#VALEURMULTI`, 55 lignes sur
+   273 226) jamais documentés avant cet audit — traités désormais comme la sentinelle `-1`,
+   pas comme un NULL silencieux (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`, CLAUDE.md).
+2. `grav` (usagers) : aucun code inattendu trouvé sur les 5 millésimes réels, mais l'agrégation
+   `.any()` de Polars renvoie `False` (pas `null`) sur un groupe entièrement null — un accident
+   dont tous les usagers auraient un `grav` illisible aurait été silencieusement classé "non
+   grave" sans lever d'erreur. Jamais déclenché en pratique (vérifié ci-dessous), corrigé
+   défensivement pour les millésimes futurs (cf. `gravia.gold.aggregate_usagers`).
+
+| Graphique | Ce qu'il montre |
+|---|---|
+| ![Sentinelle sur le brut](img/eda_raw_sentinel_rate.png) | Taux de `-1` par colonne codée BAAC, calculé sur le CSV source — comparer à `eda_missingness.png` (§0b, calculé après nettoyage) |
+| ![Distribution brute de grav](img/eda_raw_grav_distribution.png) | Les 5 valeurs de `grav` (1-4, -1) par millésime, avant l'agrégation en `is_grave` — confirme l'absence de code inattendu |
+
+## 0b. EDA exploratoire visuelle sur Gold
+
+[`eda_exploration_baac.py`](eda_exploration_baac.py) — exploration visuelle sur les features
+Gold déjà nettoyées/typées, pour le lien avec la cible (les décisions de nettoyage, elles, sont
+auditées en §0a sur le brut). Nécessite la stack dev démarrée et Gold déjà chargé
+(`python -m gravia.gold`).
+
+| Graphique | Ce qu'il montre |
+|---|---|
+| ![Taux de gravité par millésime](img/eda_target_balance_by_year.png) | Stabilité du taux de gravité 2019-2023 (~35-36 % chaque année) |
+| ![Non-renseigné par feature](img/eda_missingness.png) | Taux de code `-1` par feature après nettoyage — `regime_circulation` culmine à 5,9 % |
+| ![Taux de gravité par département](img/eda_gravity_by_departement.png) | Paris (75) nettement sous la moyenne nationale — première intuition visuelle de l'angle mort développé en §3 |
+| ![Taux de gravité par feature](img/eda_gravity_by_feature.png) | Écarts réels de gravité selon la luminosité, le type de collision, la catégorie de route |
 
 ## 1. Baseline de référence
 

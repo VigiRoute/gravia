@@ -31,7 +31,7 @@ CDC sur les deux dépôts.
 
 - **Cadrage & gouvernance** — CDC, architecture de données, plan de gouvernance, AIPD et
   présentation Jedha rédigés ([docs/](.)).
-- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter, sans visualisation ; l'EDA proprement dite y est volontairement légère, ce sont surtout des évaluations de modèle) :
+- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter ; la plupart sont des évaluations de modèle, plus deux vraies EDA visuelles : `eda_raw_baac.py` §0a sur le **brut** (audite les décisions de nettoyage Silver/Gold — a trouvé et fait corriger un artefact Excel non documenté sur `nbv` et un angle mort défensif dans l'agrégation `is_grave`) et `eda_exploration_baac.py` §0b sur **Gold** — distribution de la cible, non-renseigné par feature, gravité par département et par feature) :
   - Baseline BAAC seul validée : recall 0,808 / F1 macro 0,708 (holdout 2023) — les deux seuils
     CDC sont atteints sans aucun enrichissement.
   - Enrichissement trafic (DATEX national + capteurs Paris) testé en modèle et **écarté** :

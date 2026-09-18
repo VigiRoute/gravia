@@ -78,6 +78,13 @@ CARACTERISTIQUES_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
     ("col", pl.Int8),
 )
 
+#: Artefacts Excel trouvés dans `nbv` en auditant les données brutes (EDA sur Bronze) : le
+#: producteur a laissé fuiter des formules non résolues dans l'export CSV (55 lignes sur
+#: 273 226, 2022 et 2023 uniquement). Sans ce traitement, `cast_columns` (strict=False) les
+#: transforme en NULL silencieux — indiscernable d'une valeur réellement absente — plutôt qu'en
+#: la sentinelle -1 (« non renseigné ») déjà utilisée pour cette colonne partout ailleurs.
+NBV_EXCEL_ARTIFACTS: tuple[str, ...] = ("#ERREUR", "#VALEURMULTI")
+
 LIEUX_INT_COLUMNS: tuple[tuple[str, pl.DataType], ...] = (
     ("catr", pl.Int8),
     ("circ", pl.Int8),
@@ -203,6 +210,9 @@ def clean_lieux(df: pl.DataFrame) -> pl.DataFrame:
         La table typée, une ligne par `Num_Acc`, sans `voie`/`v1`/`v2`/`pr`/`pr1`
         (pseudonymisation — cf. docstring module).
     """
+    df = df.with_columns(
+        pl.col("nbv").str.strip_chars().replace(NBV_EXCEL_ARTIFACTS, "-1").alias("nbv")
+    )
     df = cast_columns(df, LIEUX_INT_COLUMNS)
     df = df.with_columns(
         [

@@ -87,6 +87,41 @@ def test_clean_lieux_dedups_and_normalizes_decimal_comma() -> None:
     assert result.filter(pl.col("Num_Acc") == "1")["lartpc"].item() == 1.5
     assert result.filter(pl.col("Num_Acc") == "2")["lartpc"].item() == -1.0
     assert result.filter(pl.col("Num_Acc") == "2")["larrout"].item() == 7.5
+
+
+def test_clean_lieux_maps_excel_artifacts_to_sentinel() -> None:
+    """`nbv` contient parfois des artefacts Excel non résolus dans le CSV source (constaté sur
+    2022/2023 réels : "#ERREUR", "#VALEURMULTI") ; ils doivent devenir -1 (non renseigné), pas
+    un NULL silencieux indiscernable d'une valeur réellement absente."""
+    df = pl.DataFrame(
+        {
+            "Num_Acc": ["1", "2", "3"],
+            "catr": ["3", "1", "1"],
+            "voie": ["A63", "A63", "RN10"],
+            "v1": ["63", "63", "10"],
+            "v2": ["", "", ""],
+            "circ": ["2", "1", "1"],
+            "nbv": ["#ERREUR", " #VALEURMULTI", "2"],
+            "pr": ["10", "10", "5"],
+            "pr1": ["100", "100", "50"],
+            "vosp": ["0", "0", "0"],
+            "prof": ["1", "1", "1"],
+            "plan": ["1", "1", "1"],
+            "surf": ["1", "1", "1"],
+            "infra": ["0", "0", "0"],
+            "situ": ["1", "1", "1"],
+            "vma": ["50", "50", "50"],
+            "lartpc": ["1,50", "1,50", "1,50"],
+            "larrout": ["6,00", "6,00", "6,00"],
+        }
+    )
+
+    result = clean_lieux(df)
+
+    assert result.filter(pl.col("Num_Acc") == "1")["nbv"].item() == -1
+    assert result.filter(pl.col("Num_Acc") == "2")["nbv"].item() == -1
+    assert result.filter(pl.col("Num_Acc") == "3")["nbv"].item() == 2
+    assert result["nbv"].null_count() == 0
     for col in ("voie", "v1", "v2", "pr", "pr1"):
         assert col not in result.columns
 

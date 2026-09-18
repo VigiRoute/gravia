@@ -161,6 +161,7 @@ Calibrer des seuils par zone répare le recall local mais dégrade le F1 macro g
 - Chaque fichier BAAC source contient une **ligne finale entièrement vide** (artefact d'export) : `Num_Acc` et toutes les autres colonnes valent `null` après lecture Bronze. Constatée sur 17 des 20 combinaisons table/millésime 2019-2023. Filtrée en Silver (`Num_Acc` non nul), pas en Bronze (fidélité à la source).
 - `hrmn` (caractéristiques) est au format `"HH:MM"` — vérifié empiriquement sur 2019-2023, non documenté par le dictionnaire ONISR.
 - Le champ `voie` (lieux) est du **texte libre très bruité** (`"AUTOROUTE A 63"`, `"Echangeur 16.1 (Rd Pt autoroute A1)"`) : toute extraction de numéro de route doit être conservatrice.
+- `nbv` (lieux) contient parfois des **artefacts Excel non résolus** (`"#ERREUR"`, `"#VALEURMULTI"`) — trouvé en auditant le brut (EDA sur Bronze), 55 lignes sur 273 226 (2022 : 1, 2023 : 54). Sans traitement, `cast_columns` (`strict=False`) les transforme en NULL silencieux, indiscernable d'une valeur réellement absente — à traiter comme la sentinelle `-1` (« non renseigné »), déjà utilisée pour cette colonne partout ailleurs (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`).
 - Un accident a **plusieurs lignes** dans `lieux` → dédoublonner sur `Num_Acc`.
 
 ### Données personnelles et sensibles
