@@ -38,8 +38,13 @@ if hasattr(sys.stdout, "reconfigure"):
     # cet attribut) — sans incidence dans ce contexte, pas de console Windows à ré-encoder.
     sys.stdout.reconfigure(encoding="utf-8")
 
-#: Millésimes BAAC ingérés par défaut. Le schéma est stable sur cette période
-#: (cf. CLAUDE.md, pièges de schéma) ; élargir impose de revérifier les en-têtes.
+#: Millésimes BAAC ingérés par défaut. Borne basse fixée à 2019, pas arbitraire : l'indicateur
+#: « blessé hospitalisé » (grav=3, utilisé dans is_grave) n'est plus labellisé de la même façon
+#: par la statistique publique depuis 2019 et n'est pas comparable avant/après 2018 (changement
+#: de process de saisie des forces de l'ordre, cf. CLAUDE.md) — mélanger pré/post-2019
+#: entraînerait le modèle sur une cible dont la définition change en cours de route. Le schéma
+#: est par ailleurs stable sur cette période (cf. CLAUDE.md, pièges de schéma) ; élargir impose
+#: de revérifier les en-têtes.
 DEFAULT_YEARS: tuple[int, ...] = (2019, 2020, 2021, 2022, 2023)
 
 #: Les 4 tables BAAC, avec les variantes de nom de fichier réellement rencontrées.
