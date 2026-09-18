@@ -7,14 +7,28 @@ Scripts d'exploration ayant produit les résultats et les décisions cités dans
 Chaque script documente ses résultats dans son docstring d'en-tête et est volontairement séparé
 du code de production (`ml/`, `pipelines/`) : ce sont des explorations tracées, pas des
 composants de la solution. Ce sont des scripts `.py` rejouables en ligne de commande — **pas
-des notebooks Jupyter** (`.ipynb`) et **sans visualisation** (les seuls graphiques du projet
-portent sur des résultats déjà obtenus, générés par `docs/generate_result_charts.py`, pas sur
-l'exploration des données elle-même). Seuls 3 scripts téléchargent leurs propres données
+des notebooks Jupyter** (`.ipynb`). La plupart n'ont pas de visualisation (résultats imprimés en
+console dans le docstring) ; `eda_exploration_baac.py` (§0 ci-dessous) est l'exception : une
+vraie EDA visuelle, sur les données Gold déjà nettoyées. Seuls 3 scripts téléchargent leurs propres données
 (`explo_trafic_datex_national.py`, `explo_trafic_tmja_national.py`,
 `explo_trafic_paris_correlation_annuel.py`) ; les 6 autres — dont `eda_baseline_baac.py`, qui
 porte les chiffres de référence cités dans tout le projet — lisent les CSV BAAC déjà présents
 dans `data/raw/baac/` (à télécharger manuellement depuis data.gouv.fr, cf. lien CDC) et échouent
 sinon.
+
+## 0. EDA exploratoire visuelle
+
+[`eda_exploration_baac.py`](eda_exploration_baac.py) — exploration visuelle sur les features
+Gold déjà nettoyées/typées (pas les CSV bruts, contrairement au reste de ce dossier), ce qui
+permet de compter correctement la sentinelle BAAC `-1` plutôt que des NULL SQL. Nécessite la
+stack dev démarrée et Gold déjà chargé (`python -m gravia.gold`).
+
+| Graphique | Ce qu'il montre |
+|---|---|
+| ![Taux de gravité par millésime](img/eda_target_balance_by_year.png) | Stabilité du taux de gravité 2019-2023 (~35-36 % chaque année) |
+| ![Non-renseigné par feature](img/eda_missingness.png) | Taux de code `-1` par feature — `regime_circulation` culmine à 5,9 % |
+| ![Taux de gravité par département](img/eda_gravity_by_departement.png) | Paris (75) nettement sous la moyenne nationale — première intuition visuelle de l'angle mort développé en §3 |
+| ![Taux de gravité par feature](img/eda_gravity_by_feature.png) | Écarts réels de gravité selon la luminosité, le type de collision, la catégorie de route |
 
 ## 1. Baseline de référence
 
