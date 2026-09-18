@@ -31,7 +31,7 @@ comparaison, rechargeable explicitement via `models:/gravia-severity-classifier/
 ## Résultats — configuration `"enriched"`
 
 Flags véhicule/usager (`flag_2roues_motorise`/`flag_poids_lourd`/`flag_velo_edp`/`flag_pieton`),
-meilleure configuration déjà repérée dans `notebooks/eval_enrichissement_vs_seuil.py` (config C :
+meilleure configuration déjà repérée dans `notebooks/eval_enrichissement_vs_seuil.ipynb` (config C :
 recall 0,805 / F1 macro 0,727 avec un seuil unique). Même protocole, mêmes 3 modèles :
 
 | Modèle | Recall grave | F1 macro | Seuil calibré | Seuils CDC |
@@ -89,7 +89,7 @@ détail (un seul worker uvicorn sérialisait les requêtes ; passage à 4 worker
 ## Cohérence avec le baseline déjà publié
 
 Le LightGBM retenu (recall 0,807 / F1 macro 0,707) reproduit à 0,001 près le baseline déjà validé
-dans `notebooks/eda_baseline_baac.py` (recall 0,808 / F1 macro 0,708, même seuil calibré 0,44) —
+dans `notebooks/eda_baseline_baac.ipynb` (recall 0,808 / F1 macro 0,708, même seuil calibré 0,44) —
 confirme que Gold + `ml/features` reconstituent fidèlement ce qui avait été établi sur CSV brut.
 
 ## Deux problèmes réels trouvés en testant
@@ -114,7 +114,7 @@ confirme que Gold + `ml/features` reconstituent fidèlement ce qui avait été �
 
 - Seuil de décision **national unique**, pas de calibration par sous-groupe (département) : l'angle
   mort de sécurité documenté en CDC §13.7/§14 (recall quasi nul sur Paris avec un seuil national,
-  cf. `notebooks/eval_seuil_par_zone.py`) reste un point ouvert, pas traité par ce benchmark.
+  cf. `notebooks/eval_seuil_par_zone.ipynb`) reste un point ouvert, pas traité par ce benchmark.
 - ~~Le seuil calibré n'est pas encore persisté nulle part au-delà du run MLflow~~ — fait :
   `ml/serving` le récupère au démarrage depuis les métriques du run associé au modèle `@staging`
   (cf. `ml/serving/model.py::load_staged_model`), pas recalculé ni codé en dur.

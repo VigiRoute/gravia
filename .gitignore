@@ -45,6 +45,10 @@ mlartifacts/
 htmlcov/
 .ruff_cache/
 
+# Jupyter
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
 # IDE
 .idea/
 .vscode/

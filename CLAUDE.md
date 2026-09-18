@@ -191,7 +191,7 @@ Le baseline **BAAC seul, sans aucun enrichissement** atteint déjà les deux seu
 | Recall classe `grave` | **0,808** | train 2019-2021 / seuil calibré sur validation 2022 / test holdout 2023 |
 | F1 macro | **0,708** | idem, 273 226 accidents, seuil de décision 0,44 |
 
-Toute nouvelle feature doit être comparée à ces chiffres **sur ce même protocole** pour juger de son apport réel. C'est ainsi que le trafic a été écarté. Reproductible via `notebooks/eda_baseline_baac.py` (voir [notebooks/README.md](notebooks/README.md) pour l'index complet des explorations).
+Toute nouvelle feature doit être comparée à ces chiffres **sur ce même protocole** pour juger de son apport réel. C'est ainsi que le trafic a été écarté. Reproductible via `notebooks/eda_baseline_baac.ipynb` (voir [notebooks/README.md](notebooks/README.md) pour l'index complet des explorations).
 
 > Les seuils sont atteints au niveau agrégé national — mais voir l'**angle mort du seuil unique** ci-dessus avant de considérer le modèle comme validé.
 

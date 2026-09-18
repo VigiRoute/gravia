@@ -10,7 +10,7 @@ requires-python = ">=3.12,<3.13"
 # `great-expectations>=0.18` résolvait en 1.x (réécriture complète de l'API),
 # `mlflow>=2.12` en 3.x, `evidently>=0.4` en 0.7.x. Le jeu ci-dessous est celui
 # sous lequel les notebooks d'exploration ont été validés (cf. notebooks/README.md) :
-# eda_baseline_baac.py y reproduit recall 0,808 / F1 macro 0,708.
+# eda_baseline_baac.ipynb y reproduit recall 0,808 / F1 macro 0,708.
 # Relever une version = refaire tourner les notebooks pour vérifier la reproductibilité.
 dependencies = [
     # Traitement de données
@@ -24,6 +24,9 @@ dependencies = [
     "scikit-learn==1.9.0",
     "lightgbm==4.6.0",
     "shap==0.52.0",
+    # Déjà une dépendance transitive de scikit-learn, figée ici explicitement car importée
+    # directement (test de Welch, notebooks/explo_trafic_paris_correlation_annuel.ipynb).
+    "scipy==1.18.0",
     # Persistance
     "SQLAlchemy==2.0.51",
     "psycopg2-binary==2.9.12",
@@ -52,6 +55,14 @@ dev = [
     "pytest-cov==7.1.0",
     "ruff==0.16.0",
     "black==26.5.1",
+    # Conversion/exécution des notebooks (notebooks/README.md) : jupytext édite les notebooks
+    # au format "percent" (.py <-> .ipynb), nbclient/nbformat/ipykernel les exécutent en forçant
+    # le cwd du kernel à la racine du dépôt (cf. notebooks/run_notebook.py).
+    "jupyter==1.1.1",
+    "jupytext==1.19.5",
+    "nbclient==0.11.0",
+    "nbformat==5.11.1",
+    "ipykernel==7.3.0",
 ]
 
 # Airflow (3.x) est lourd et géré via son image Docker (infra/docker-compose.yml),

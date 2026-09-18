@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS gold_dim_date (
 -- pas une condition transitoire — cf. gold_dim_conditions pour météo/luminosité/état surface).
 -- Étendu le 2026-08-24 : le diagramme d'origine (Architecture_GRAVIA.md, avant tout test) ne
 -- prévoyait que 4 attributs, tous ceux ci-dessous sont nécessaires pour reproduire le baseline
--- déjà validé (notebooks/eda_baseline_baac.py, recall 0,808 / F1 macro 0,708).
+-- déjà validé (notebooks/eda_baseline_baac.ipynb, recall 0,808 / F1 macro 0,708).
 CREATE TABLE IF NOT EXISTS gold_dim_lieu (
     lieu_key            SERIAL PRIMARY KEY,
     departement         VARCHAR(3) NOT NULL,   -- code INSEE : "2A"/"2B" en Corse, non numérique
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS gold_dim_collision (
 -- Le schéma initial (Architecture_GRAVIA.md, avant tout test) ne prévoyait que 3 flags
 -- (flag_moto / flag_poids_lourd / flag_pieton), jamais implémentés ni testés à l'époque.
 -- Les flags ci-dessous suivent la configuration réellement validée empiriquement dans
--- notebooks/eval_enrichissement_vs_seuil.py (meilleure config testée : recall Paris 0,812,
+-- notebooks/eval_enrichissement_vs_seuil.ipynb (meilleure config testée : recall Paris 0,812,
 -- F1 macro national 0,609, combinée à un seuil par département au moment du scoring).
 CREATE TABLE IF NOT EXISTS gold_fact_accident (
     accident_id             VARCHAR(20) PRIMARY KEY,   -- Num_Acc

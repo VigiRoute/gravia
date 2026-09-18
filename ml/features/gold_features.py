@@ -1,7 +1,7 @@
 """Construction de la matrice de features ML à partir du schéma en étoile Gold.
 
-Reprend le protocole déjà validé dans `notebooks/eda_baseline_baac.py` (baseline, recall 0,808 /
-F1 macro 0,708) et `notebooks/eval_enrichissement_vs_seuil.py` (meilleure configuration testée,
+Reprend le protocole déjà validé dans `notebooks/eda_baseline_baac.ipynb` (baseline, recall 0,808 /
+F1 macro 0,708) et `notebooks/eval_enrichissement_vs_seuil.ipynb` (meilleure configuration testée,
 enrichissement véhicule/usager), avec les noms de colonnes du schéma Gold plutôt que les codes
 BAAC bruts lus directement en CSV par ces notebooks.
 
@@ -32,7 +32,7 @@ from __future__ import annotations
 import polars as pl
 import sqlalchemy as sa
 
-#: Reprises telles quelles de CARACT_FEATURES + LIEUX_FEATURES (notebooks/eda_baseline_baac.py),
+#: Reprises telles quelles de CARACT_FEATURES + LIEUX_FEATURES (notebooks/eda_baseline_baac.ipynb),
 #: renommées comme le schéma Gold les expose. `agglomeration` n'y figure pas : cf. docstring.
 BASELINE_CATEGORICAL_COLUMNS: tuple[str, ...] = (
     "luminosite",
@@ -50,7 +50,7 @@ BASELINE_CATEGORICAL_COLUMNS: tuple[str, ...] = (
     "situation",
 )
 
-#: Reprises telles quelles de NUMERIC_FEATURES (notebooks/eda_baseline_baac.py).
+#: Reprises telles quelles de NUMERIC_FEATURES (notebooks/eda_baseline_baac.ipynb).
 BASELINE_NUMERIC_COLUMNS: tuple[str, ...] = (
     "nb_voies",
     "vitesse_max",
@@ -63,7 +63,7 @@ BASELINE_NUMERIC_COLUMNS: tuple[str, ...] = (
 #: `agg` du baseline d'origine (code catégoriel 1/2) ; Gold le stocke en booléen propre.
 BASELINE_BOOLEAN_COLUMNS: tuple[str, ...] = ("agglomeration",)
 
-#: Meilleure configuration testée (notebooks/eval_enrichissement_vs_seuil.py) : recall Paris
+#: Meilleure configuration testée (notebooks/eval_enrichissement_vs_seuil.ipynb) : recall Paris
 #: 0,812, F1 macro national 0,609, combinée à un seuil par département au moment du scoring
 #: (hors périmètre de ce module — c'est une décision de `ml/training`, pas une feature).
 ENRICHED_FLAG_COLUMNS: tuple[str, ...] = (
@@ -173,7 +173,7 @@ def split_train_valid_test(
     """Split temporel anti-leakage : train 2019-2021 / validation 2022 / test 2023.
 
     Le test (2023) est un holdout jamais vu, y compris pour calibrer un seuil de décision — le
-    calibrer sur le test serait de la fuite de méthodologie (cf. notebooks/eda_baseline_baac.py).
+    calibrer sur le test serait de la fuite de méthodologie (cf. notebooks/eda_baseline_baac.ipynb).
 
     Args:
         df: Sortie de `prepare_features` (ou `load_gold_features`, le split ne dépend pas du

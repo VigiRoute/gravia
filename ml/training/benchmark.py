@@ -23,7 +23,7 @@ reste tracké dans MLflow mais n'est pas enregistré (cf. CLAUDE.md, seuils et m
 « Bloquer la promotion en production »).
 
 Hors périmètre, volontairement : la calibration de seuil par sous-groupe (département) reste un
-point ouvert non résolu (CDC §13.7/§14, cf. notebooks/eval_seuil_par_zone.py) — un seuil national
+point ouvert non résolu (CDC §13.7/§14, cf. notebooks/eval_seuil_par_zone.ipynb) — un seuil national
 unique est calibré ici sur la validation, pas une politique de seuils par zone.
 
 Limitation connue, constatée en testant — à traiter par `ml/serving`, pas ici : le chemin de
@@ -69,7 +69,7 @@ from ml.features.gold_features import (
 
 RANDOM_STATE = 42
 N_ESTIMATORS = 300
-LEARNING_RATE = 0.05  # LightGBM uniquement (cf. notebooks/eda_baseline_baac.py)
+LEARNING_RATE = 0.05  # LightGBM uniquement (cf. notebooks/eda_baseline_baac.ipynb)
 
 #: Seuils CDC (cf. CLAUDE.md, seuils et métriques).
 TARGET_RECALL = 0.80
@@ -88,7 +88,7 @@ def feature_columns(feature_set: FeatureSet) -> tuple[list[str], list[str]]:
     Args:
         feature_set: `"baseline"` reproduit exactement le protocole publié (recall 0,808 / F1
             macro 0,708). `"enriched"` y ajoute `ENRICHED_FLAG_COLUMNS` (meilleure configuration
-            testée dans `notebooks/eval_enrichissement_vs_seuil.py`, jamais promue en référence
+            testée dans `notebooks/eval_enrichissement_vs_seuil.ipynb`, jamais promue en référence
             officielle).
 
     Returns:
@@ -117,7 +117,7 @@ def _to_pandas(df: pl.DataFrame, categorical: list[str], other: list[str]) -> pd
 def calibrate_threshold(y_true: pd.Series, proba: np.ndarray, target_recall: float) -> float:
     """Choisit le plus grand seuil qui atteint le recall cible.
 
-    Repris de `notebooks/eda_baseline_baac.py` : calibré sur la validation, jamais sur le test —
+    Repris de `notebooks/eda_baseline_baac.ipynb` : calibré sur la validation, jamais sur le test —
     calibrer sur le holdout final serait de la fuite de méthodologie.
 
     Args:
