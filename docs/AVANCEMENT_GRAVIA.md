@@ -14,7 +14,7 @@ par le CDC, y compris l'observabilité (ENF-7).
 
 ## En une phrase
 
-Le cadrage, l'EDA et les décisions d'architecture sont actés ; le pipeline de données
+Le cadrage, les explorations préliminaires et les décisions d'architecture sont actés ; le pipeline de données
 **Bronze → Silver → Quality → Gold est complet, testé et orchestré par Airflow**, chargé en base
 réelle (273 226 accidents, 2019-2023) ; **`ml/features`, `ml/training`, `ml/serving`,
 `ml/monitoring` et `ml/fairness` en place** — un modèle (LightGBM enriched) est entraîné,
@@ -31,7 +31,7 @@ CDC sur les deux dépôts.
 
 - **Cadrage & gouvernance** — CDC, architecture de données, plan de gouvernance, AIPD et
   présentation Jedha rédigés ([docs/](.)).
-- **EDA & décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail) :
+- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter, sans visualisation ; l'EDA proprement dite y est volontairement légère, ce sont surtout des évaluations de modèle) :
   - Baseline BAAC seul validée : recall 0,808 / F1 macro 0,708 (holdout 2023) — les deux seuils
     CDC sont atteints sans aucun enrichissement.
   - Enrichissement trafic (DATEX national + capteurs Paris) testé en modèle et **écarté** :
@@ -204,7 +204,7 @@ CDC sur les deux dépôts.
   séquentiel (une requête à la fois) avait affiché p95 = 16 ms, une évaluation **trompeuse** :
   sous charge concurrente réelle, un seul worker uvicorn (config d'origine) sérialisait tout,
   débit plafonné à ~65 req/s quelle que soit la concurrence, **p95 = 424 ms dès 25 requêtes
-  simultanées — sous le seuil CDC ENF-1 (< 300 ms)**. Corrigé en passant à 4 workers uvicorn
+  simultanées — au-dessus du seuil CDC ENF-1 (< 300 ms), non conforme**. Corrigé en passant à 4 workers uvicorn
   (`infra/serving/Dockerfile`, un par cœur logique disponible n'était pas nécessaire pour ce
   volume) : débit ~3-4× meilleur (≈210-227 req/s), **p95 repasse sous 300 ms jusqu'à ~25-40
   requêtes simultanées** ; à 50 requêtes simultanées c'est tout juste à la limite (p95≈301 ms,
@@ -260,9 +260,10 @@ CDC sur les deux dépôts.
   **constatés empiriquement sur les 5 millésimes réels** (pas recopiés à l'aveugle du dictionnaire
   ONISR) : formalisent en expectations exécutables les pièges de schéma BAAC déjà documentés en
   prose (sentinelle `-1`, `id_usager` absent avant 2021 — géré en conditionnant l'expectation à la
-  présence de la colonne dans le batch). `vma`/`nbv` (lieux) tolèrent 0,1 % de valeurs aberrantes
-  (`mostly=0,999`) : 64 lignes sur 273 226 portent une vitesse de 300-901 km/h, bruit de saisie
-  déjà présent dans la source BAAC. Vérifié sur les 5 millésimes réels : 20/20 tables conformes.
+  présence de la colonne dans le batch). `vma`/`nbv` (lieux) tolèrent chacune 0,1 % de valeurs
+  aberrantes (`mostly=0,999`) : pour `vma`, 64 lignes sur 273 226 portent une vitesse de
+  300-901 km/h, bruit de saisie déjà présent dans la source BAAC (comptage équivalent non publié
+  pour `nbv`). Vérifié sur les 5 millésimes réels : 20/20 tables conformes.
   Image Airflow reconstruite avec `great-expectations` ajouté au sous-ensemble de dépendances ETL
   (`infra/airflow/Dockerfile`) ; import et exécution vérifiés dans le conteneur réel. 5 tests
   unitaires (dont un cas d'échec provoqué délibérément) + 1 test d'intégration (contre le vrai
@@ -293,8 +294,9 @@ CDC sur les deux dépôts.
   validés, sans rapport avec l'ajout de la CI.
   **Portée volontairement limitée** : les tests d'intégration (PostgreSQL/MLflow/MinIO réels) se
   `pytest.skip()` proprement en l'absence de la stack dev (vérifié en simulant l'environnement CI
-  en local : `DATABASE_URL`/`MLFLOW_TRACKING_URI` pointés vers un port injoignable → 53 tests
-  passent, 6 se skippent proprement, aucun blocage). Conséquence directe : la couverture mesurée
+  en local : `DATABASE_URL`/`MLFLOW_TRACKING_URI` pointés vers un port injoignable → 57 tests
+  passent, 8 se skippent proprement, aucun blocage — chiffres remesurés au 2026-09-18, la suite
+  a grossi depuis le jalon initial de cette section). Conséquence directe : la couverture mesurée
   en CI (~73 %) est **sous le seuil CDC de 80 %**, contrairement à la couverture réelle du projet
   (82 % avec la stack complète démarrée, mesuré au 2026-09-13 — les jalons antérieurs (82-86 %)
   citaient un instantané plus ancien ; du code ajouté depuis (`ml/fairness`, `ml/monitoring`,

@@ -194,7 +194,8 @@ services:
         condition: service_healthy
 
   # --- Orchestration (Airflow 3) ---
-  # Initialise la base de métadonnées et crée l'utilisateur admin, puis s'arrête.
+  # Initialise la base de métadonnées, puis s'arrête (authentification désactivée en dev, cf.
+  # AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS ci-dessous — aucun utilisateur à créer).
   airflow-init:
     <<: *airflow-common
     entrypoint: >

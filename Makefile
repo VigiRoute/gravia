@@ -40,17 +40,17 @@ test-unit:  ## Tests unitaires
 test-integration:  ## Tests d'intégration (Docker requis)
 	pytest tests/integration/ -v
 
-cov:  ## Couverture de tests
-	pytest --cov=gravia --cov-report=html --cov-report=term
+cov:  ## Couverture de tests (gravia + ml, cf. [tool.coverage.run] dans pyproject.toml)
+	pytest --cov --cov-report=html --cov-report=term
 
-lint:  ## Linting (ruff)
-	ruff check src/ ml/ tests/ notebooks/
+lint:  ## Linting (ruff) — notebooks/ exclu via extend-exclude (pyproject.toml), pas passé ici
+	ruff check src/ ml/ tests/
 
 format:  ## Formatage (black)
 	black src/ ml/ tests/ notebooks/
 
 validate-data:  ## Validation Great Expectations
-	python -m gravia.validate
+	python -m gravia.quality
 
 # NB : le Terraform (LocalStack -> AWS) vit dans le dépôt VigiRoute/gravia-mlops,
 # pas ici (cf. Architecture_GRAVIA.md §6.3). La cible `tf-localstack` a donc été

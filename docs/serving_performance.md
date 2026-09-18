@@ -39,7 +39,7 @@ réel, à plusieurs paliers de concurrence.
 |---:|---:|---:|
 | 1 | 57 req/s | 24 ms |
 | 10 | 65 req/s | 188 ms |
-| 25 | 65 req/s | **424 ms — sous le seuil CDC** |
+| 25 | 65 req/s | **424 ms — au-dessus du seuil CDC (&lt; 300 ms), non conforme** |
 | 50 | 65 req/s | 803 ms |
 
 Le débit plafonne à ~65 req/s **quelle que soit la concurrence** : signature classique d'un

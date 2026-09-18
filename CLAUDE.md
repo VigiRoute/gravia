@@ -98,7 +98,7 @@ gravia/
 │   └── docker-compose.yml   # stack DEV locale (MinIO, PostgreSQL, Airflow…)
 ├── tests/                   # unit + integration
 ├── notebooks/               # exploration
-├── docs/                    # CDC, architecture, gouvernance, AIPD, présentation, ADR
+├── docs/                    # CDC, architecture, gouvernance, AIPD, présentation
 └── .github/workflows/       # CI de la solution (tests, lint, build)
 ```
 

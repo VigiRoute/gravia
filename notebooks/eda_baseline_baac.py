@@ -1,8 +1,12 @@
 """EDA + modèle baseline sur le BAAC (2019-2023), SANS enrichissement externe.
 
-Le CDC prévoit de trancher l'intégration trafic/bulletins "après l'EDA + un modèle baseline"
-(cf. CDC_GRAVIA.md ligne 227). Ce notebook fournit cette référence : uniquement les 4 tables
-BAAC natives (caractéristiques, lieux, véhicules, usagers), sans météo/géo/trafic/bulletins.
+Ce script fournit la référence à laquelle comparer tout enrichissement (trafic, bulletins,
+cf. CDC_GRAVIA.md §13.6) avant de l'intégrer : uniquement les 4 tables BAAC natives
+(caractéristiques, lieux, véhicules, usagers), sans météo/géo/trafic/bulletins. L'EDA elle-même
+(fonction `run_eda`) est volontairement légère — distribution de la cible par année, taux de
+valeurs nulles — pas une exploration visuelle : aucune bibliothèque de graphiques n'est utilisée
+ici (les seuls graphiques du projet, générés par `docs/generate_result_charts.py`, portent sur
+des résultats déjà obtenus, pas sur l'exploration des données).
 
 Périmètre : 2019-2023 (schéma BAAC stable sur cette période — cf. piège ci-dessous), toute la
 France (pas de restriction géographique, contrairement à l'exploration trafic Paris qui reste
@@ -34,8 +38,13 @@ RÉSULTATS (273 226 accidents France entière, 2019-2023) :
     Bien plus élevé que le ~9 % observé sur le sous-ensemble Paris (cf. exploration trafic) :
     cohérent, le mix national inclut les accidents ruraux/autoroutiers à vitesse élevée,
     plus sévères que la moyenne urbaine dense parisienne.
-  - 0 % de valeurs manquantes sur les features retenues (contraste net avec les sources
-    trafic externes, où le bruit/manquant était le problème central).
+  - 0 % de valeurs NULL SQL sur les features retenues (contraste net avec les sources trafic
+    externes, où le bruit/manquant était le problème central) — mais ce chiffre ne compte pas
+    la sentinelle BAAC `" -1"` (non renseigné, cf. CLAUDE.md, pièges de schéma) puisque les
+    colonnes sont lues en texte sans nettoyage ici : le non-renseigné explicite atteint jusqu'à
+    5,9 % sur `circ`, ~2 % sur `vma`, ~1 % sur `vosp`/`infra` (mesuré sur Gold). Écart assumé :
+    ce baseline n'a pas besoin de distinguer "non renseigné" de "absent" pour ses résultats,
+    contrairement à `ml/features` et `Great Expectations` qui, eux, la traitent explicitement.
   - Split temporel à 3 voies : train 2019-2021, validation 2022 (calibrage du seuil de
     décision), test 2023 (holdout jamais vu, y compris pour le calibrage).
       * Seuil par défaut (0,5)      : recall grave 0,760, F1 macro 0,721 — recall sous le

@@ -81,16 +81,16 @@ flowchart LR
     B --> S --> G
     S -.qualité.-> GE
     G --> M --> R --> API
-    API --> EV
+    G --> EV
+    R --> EV
     API --> PG
 
     O[Airflow - orchestration] -.pilote.-> B
     O -.pilote.-> S
     O -.pilote.-> G
-    O -.pilote.-> M
 ```
 
-Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources actives du diagramme : aucune des trois n'alimente le pipeline (cf. §2.3). Le bus Redpanda/Kafka est provisionné dans la stack dev (démonstration de la capacité) mais n'a aucun producteur ni consommateur applicatif branché dessus.
+Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources actives du diagramme : aucune des trois n'alimente le pipeline (cf. §2.3). Le bus Redpanda/Kafka est provisionné dans la stack dev (démonstration de la capacité) mais n'a aucun producteur ni consommateur applicatif branché dessus. L'entraînement (`M`) n'est pas piloté par Airflow — le DAG (`pipelines/airflow/dags/etl_medallion_dag.py`) ne contient que les tâches `bronze`/`silver`/`quality`/`gold` ; l'entraînement se lance en ligne de commande ou via `.github/workflows/retrain.yml` (GitHub Actions). Evidently (`EV`) lit directement Gold et le modèle MLflow (`ml/monitoring/drift.py`), pas l'API.
 
 ### 2.3 Origine des flux et du temps réel
 
@@ -249,7 +249,7 @@ erDiagram
 
 > **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
 
-> **Décidé après exploration (EDA + baseline, cf. CDC §13.6-7).** Le schéma ci-dessus reflète la décision finale, pas la version de départ : ni le **trafic** ni les **bulletins d'incidents** n'apparaissent comme features. Le trafic a été testé (jointure, corrélation statistique, gain mesuré en modèle dédié Paris puis en configuration nationale sparse) et **écarté** : signal réel mais gain prédictif nul une fois le modèle doté des variables temporelles (heure/jour/mois). Les bulletins sont **retirés** : aucune source réelle identifiée. Le baseline BAAC seul atteint déjà les seuils CDC agrégés (recall grave 0,808, F1 macro 0,708), avec une réserve importante documentée en CDC §14 : un seuil de décision unique masque un recall quasi nul sur les zones à faible taux de gravité de base (ex. Paris), à traiter avant mise en production.
+> **Décidé après mesure du gain prédictif (baseline + tests d'enrichissement, cf. CDC §13.6-7).** Le schéma ci-dessus reflète la décision finale, pas la version de départ : ni le **trafic** ni les **bulletins d'incidents** n'apparaissent comme features. Le trafic a été testé (jointure, corrélation statistique, gain mesuré en modèle dédié Paris puis en configuration nationale sparse) et **écarté** : signal réel mais gain prédictif nul une fois le modèle doté des variables temporelles (heure/jour/mois). Les bulletins sont **retirés** : aucune source réelle identifiée. Le baseline BAAC seul atteint déjà les seuils CDC agrégés (recall grave 0,808, F1 macro 0,708), avec une réserve importante documentée en CDC §14 : un seuil de décision unique masque un recall quasi nul sur les zones à faible taux de gravité de base (ex. Paris), à traiter avant mise en production.
 
 ---
 
@@ -304,7 +304,7 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 | Aspect | Mesure | Statut |
 |---|---|---|
 | Chiffrement | Au repos (S3/RDS) et en transit (TLS) | À implémenter — pas de cloud réel déployé |
-| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) | **Fait** — `lat`/`long`/`adr`/`voie`/`pr`/`pr1` supprimées |
+| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) | **Fait** — `lat`/`long`/`adr` (caractéristiques) et `voie`/`v1`/`v2`/`pr`/`pr1` (lieux) supprimées |
 | Gestion des accès | Moindre privilège (IAM / rôles PostgreSQL) | À implémenter |
 | Secrets | Variables d'environnement `.env` (dev) / Secrets Manager (cible) | **Fait** en dev (`.env` gitignoré) |
 | Traçabilité | Lineage des transformations, journalisation des prédictions | **Partiel** — prédictions journalisées en logs, pas de registre interrogeable 12 mois |
@@ -327,9 +327,9 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 ## 9. Surveillance de l'infrastructure
 
 - **Prometheus** : instrumentation de l'API (`prometheus-fastapi-instrumentator`, endpoint `/metrics`) — latence, débit, taux d'erreur.
-- **Grafana** : tableau de bord provisionné (6 panels : p50/p95 vs seuil CDC ENF-1 300 ms, débit par endpoint, taux d'erreur, total requêtes, disponibilité de la cible), vérifié sur trafic réel (p95 ≈ 95 ms mesuré). **Pas d'alerte configurée à ce jour** — les seuils sont visibles sur le dashboard, pas encore câblés à une notification automatique.
+- **Grafana** : tableau de bord provisionné (6 panels : p50/p95 vs seuil CDC ENF-1 300 ms, p95 actuel `/v1/predict-severity`, débit par endpoint, taux d'erreur, total requêtes, disponibilité de la cible), vérifié sur trafic réel (p95 ≈ 95 ms mesuré). **Pas d'alerte configurée à ce jour** — les seuils sont visibles sur le dashboard, pas encore câblés à une notification automatique.
 - **Great Expectations** : qualité des données à chaque exécution de pipeline.
-- **Evidently** : dérive des données et du modèle (déclencheur de réentraînement).
+- **Evidently** : dérive des données et du modèle (`ml/monitoring/drift.py`, lancé à la main). Déclencheur visé, pas encore câblé : cf. CDC EF-6 — le réentraînement réel reste manuel/calendaire (`workflow_dispatch` + trimestriel), pas déclenché automatiquement par une dérive détectée.
 
 ---
 

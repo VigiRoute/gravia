@@ -41,6 +41,9 @@ Deux métriques par sous-groupe :
 | Femme | 4 884 | 0,381 | 0,597 | 0,873 | 0,427 |
 | Homme | 15 259 | 0,479 | 0,648 | 0,866 | 0,446 |
 
+*Effectifs (4 884 + 15 259 = 20 143) inférieurs aux 20 830 accidents à conducteur unique : 687
+conducteurs au sexe non renseigné (`sexe = -1`) sont exclus de ce tableau.*
+
 **Écart de rappel : 0,007 · Écart de FPR : 0,019** — parité quasi parfaite entre sexes sur les
 deux métriques d'*equalized odds*. Le taux de gravité réelle diffère (hommes plus impliqués dans
 des accidents graves, cohérent avec les statistiques de sécurité routière connues), mais le
@@ -56,6 +59,10 @@ modèle ne traite pas les deux groupes différemment à gravité égale.
 | 35-49 | 4 471 | 0,428 | 0,613 | 0,859 | 0,428 |
 | 50-64 | 3 605 | 0,479 | 0,642 | 0,870 | 0,432 |
 | 65+ | 2 717 | 0,539 | 0,705 | 0,880 | 0,500 |
+
+*Effectifs (677+4 415+4 210+4 471+3 605+2 717 = 20 095) inférieurs aux 20 830 accidents à
+conducteur unique : 735 conducteurs à tranche d'âge inconnue (`tranche_age = "Inconnu"`, âge
+manquant ou aberrant) sont exclus de ce tableau.*
 
 **Écart de rappel : 0,044 · Écart de FPR : 0,191.**
 

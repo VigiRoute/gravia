@@ -48,7 +48,8 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 | Catégorie | Exemples | Niveau de sensibilité | Traitement |
 |---|---|---|---|
 | Données non personnelles | Conditions météo (déjà portées par le BAAC), trafic DATEX exploré en batch (testé puis écarté comme feature de modèle), type de route, type de collision | Public | Libre |
-| **Données personnelles** | Âge, sexe, géolocalisation précise, motif de trajet | Restreint | Pseudonymisation |
+| **Données personnelles** | Âge, géolocalisation précise | Restreint | Pseudonymisation |
+| **Données personnelles, conservées telles quelles** | Sexe (nécessaire à l'audit d'équité EC-6), motif de trajet | Restreint | Non transformées — cf. AIPD §2.2 |
 | **Données sensibles (art. 9 RGPD)** | **Gravité = donnée de santé** | Confidentiel | Accès strict, AIPD |
 | Données opérationnelles (prod) | Signalement temps réel d'une victime identifiable | Confidentiel | Chiffrement, accès strict, traçabilité |
 
@@ -102,7 +103,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 |---|---|---|
 | Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}` — `-1` = non renseigné, codé explicitement par le BAAC, cf. CLAUDE.md) |
 | Complétude | Champs clés non nuls (identifiant, date, lieu) | Tests de complétude par millésime |
-| Cohérence | Plausibilité (âge ≤ 110 ans ; `dep`, `an`, `vma`/`nbv` bornés) | Règles de validation — les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
+| Cohérence | Plausibilité (âge ≤ 110 ans, borné en Silver ; `an`, `vma`/`nbv` bornés en Great Expectations ; `dep` non nul mais sans borne de valeur) | Règles de validation — les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
 | Unicité | Pas de doublons d'accidents | Déduplication en Silver |
 | Traçabilité | Lineage des transformations Bronze→Silver→Gold | Journalisation + métadonnées |
 
@@ -183,7 +184,7 @@ Procédure en cas de violation :
 | Ré-identification d'une victime | Élevée | Pseudonymisation, agrégation géo | Notification, retrait des données concernées |
 | Violation de données (fuite) | Élevée | Chiffrement, accès restreint | Procédure §11, notification CNIL |
 | Biais discriminatoire du modèle | Élevée | Tests d'équité, atténuation, human-in-the-loop | Suspension du scoring, réentraînement |
-| Dérive des données | Moyenne | Monitoring Evidently | Réentraînement automatique |
+| Dérive des données | Moyenne | Monitoring Evidently (`ml/monitoring/drift.py`, lancé à la main) | Réentraînement manuel/calendaire à ce jour (`workflow_dispatch` + trimestriel) — le déclenchement automatique par dérive détectée est visé (CDC EF-6), pas encore câblé |
 | Indisponibilité de l'API | Moyenne | Redondance, supervision | Bascule mode dégradé (décision humaine seule) |
 | Erreur humaine de manipulation | Moyenne | Formation, moindre privilège | Restauration depuis sauvegarde |
 
