@@ -222,9 +222,18 @@ def aggregate_usagers(df: pl.DataFrame) -> pl.DataFrame:
     Returns:
         Une ligne par `Num_Acc` : nombre d'usagers, `is_grave`, `flag_pieton`.
     """
+    # `.any()` sur un groupe où `grav` est entièrement null renvoie `False` (constaté en
+    # testant), pas `null` : un accident dont tous les usagers auraient un `grav` illisible
+    # serait donc silencieusement classé "non grave" au lieu de déclencher l'erreur ci-dessous
+    # via `build_fact_frame`. Jamais rencontré sur les 5 millésimes réels (vérifié : `grav` brut
+    # ne contient que "1"-"4"/" -1"/l'unique ligne d'export vide déjà filtrée en amont), mais le
+    # filet de sécurité est peu coûteux à poser pour les millésimes futurs.
     return df.group_by("Num_Acc").agg(
         pl.len().alias("nb_usagers"),
-        pl.col("grav").is_in([2, 3]).any().alias("is_grave"),
+        pl.when(pl.col("grav").is_null().all())
+        .then(None)
+        .otherwise(pl.col("grav").is_in([2, 3]).any())
+        .alias("is_grave"),
         (pl.col("catu") == 3).any().alias("flag_pieton"),
     )
 
