@@ -9,7 +9,7 @@ schéma physique (`gold_fact_accident`, `gold_dim_date`, `gold_dim_lieu`, `gold_
 Écarts assumés par rapport au schéma d'origine (documentés ici, pas silencieux) :
     - Les flags véhicule/usager du schéma d'origine (`flag_moto`, `flag_poids_lourd`,
       `flag_pieton`) n'avaient jamais été implémentés ni testés. Ils sont remplacés par la
-      configuration réellement validée dans `notebooks/eval_enrichissement_vs_seuil.py`
+      configuration réellement validée dans `notebooks/eval_enrichissement_vs_seuil.ipynb`
       (`flag_2roues_motorise`, `flag_poids_lourd`, `flag_velo_edp`, `flag_pieton`), qui inclut un
       flag de plus et un périmètre `catv` différent pour le premier. Les codes `catv` sont repris
       à l'identique de ce notebook, pas redevinés.
@@ -21,7 +21,7 @@ schéma physique (`gold_fact_accident`, `gold_dim_date`, `gold_dim_lieu`, `gold_
     - `gold_dim_lieu` porte 8 attributs de plus que le diagramme d'origine (`intersection`,
       `regime_circulation`, `nb_voies`, `voie_reservee`, `profil_route`, `trace_plan`,
       `infrastructure`, `situation`) : le diagramme ne prévoyait que 4 attributs, insuffisant
-      pour reproduire le baseline déjà validé (`notebooks/eda_baseline_baac.py`), qui les utilise
+      pour reproduire le baseline déjà validé (`notebooks/eda_baseline_baac.ipynb`), qui les utilise
       tous. Trouvé en préparant `ml/features` — corrigé avant d'aller plus loin plutôt que de
       construire les features sur un Gold structurellement incomplet.
 
@@ -62,7 +62,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 #: Codes `catv` (véhicules) vérifiés empiriquement dans
-#: notebooks/eval_enrichissement_vs_seuil.py — meilleure configuration testée à ce jour.
+#: notebooks/eval_enrichissement_vs_seuil.ipynb — meilleure configuration testée à ce jour.
 CATV_2ROUES_MOTORISE: tuple[int, ...] = (2, 30, 31, 32, 33, 34, 35, 36, 41, 42, 43)
 CATV_POIDS_LOURD: tuple[int, ...] = (13, 14, 15, 16, 17, 37, 38)
 CATV_VELO_EDP: tuple[int, ...] = (1, 50, 60, 80)

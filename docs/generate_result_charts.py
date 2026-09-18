@@ -8,7 +8,7 @@ Deux sources de données différentes, assumées :
   `ml.monitoring.drift`) — mêmes résultats que documentés, pas une resaisie manuelle qui pourrait
   diverger silencieusement des vrais calculs.
 - **Benchmark des 3 modèles** : chiffres repris tels quels de `docs/ml_training_results.md`
-  (déjà validés à 0,001 près contre `notebooks/eda_baseline_baac.py`), pas recalculés ici —
+  (déjà validés à 0,001 près contre `notebooks/eda_baseline_baac.ipynb`), pas recalculés ici —
   relancer `ml.training.benchmark` prend plusieurs minutes (Random Forest, 300 arbres sur
   273 226 lignes) pour produire des nombres déjà connus et publiés.
 

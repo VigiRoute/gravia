@@ -31,7 +31,7 @@ CDC sur les deux dépôts.
 
 - **Cadrage & gouvernance** — CDC, architecture de données, plan de gouvernance, AIPD et
   présentation Jedha rédigés ([docs/](.)).
-- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter ; la plupart sont des évaluations de modèle, plus deux vraies EDA visuelles : `eda_raw_baac.py` §0a sur le **brut** (audite les décisions de nettoyage Silver/Gold — a trouvé et fait corriger un artefact Excel non documenté sur `nbv` et un angle mort défensif dans l'agrégation `is_grave`) et `eda_exploration_baac.py` §0b sur **Gold** — distribution de la cible, non-renseigné par feature, gravité par département et par feature) :
+- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter ; la plupart sont des évaluations de modèle, plus deux vraies EDA visuelles : `eda_raw_baac.ipynb` §0a sur le **brut** (audite les décisions de nettoyage Silver/Gold — a trouvé et fait corriger un artefact Excel non documenté sur `nbv` et un angle mort défensif dans l'agrégation `is_grave`) et `eda_exploration_baac.ipynb` §0b sur **Gold** — distribution de la cible, non-renseigné par feature, gravité par département et par feature) :
   - Baseline BAAC seul validée : recall 0,808 / F1 macro 0,708 (holdout 2023) — les deux seuils
     CDC sont atteints sans aucun enrichissement.
   - Enrichissement trafic (DATEX national + capteurs Paris) testé en modèle et **écarté** :
@@ -78,7 +78,7 @@ CDC sur les deux dépôts.
   `gold_dim_date`, `gold_dim_lieu`, `gold_dim_conditions`, `gold_dim_collision`), avec 3 écarts
   assumés et documentés dans le module : `departement` en `VARCHAR` (codes Corse `2A`/`2B` non
   numériques) ; `type_collision` décodé en libellé texte ; les flags véhicule/usager reprennent
-  la configuration **réellement validée** dans `notebooks/eval_enrichissement_vs_seuil.py`
+  la configuration **réellement validée** dans `notebooks/eval_enrichissement_vs_seuil.ipynb`
   (`flag_2roues_motorise`/`flag_poids_lourd`/`flag_velo_edp`/`flag_pieton`, codes `catv` repris à
   l'identique) plutôt que le `flag_moto` jamais testé du schéma d'origine. `jour_ferie` est un
   enrichissement neuf (jours fériés France métropolitaine, `dateutil.easter`, dépendance figée
@@ -141,7 +141,7 @@ CDC sur les deux dépôts.
   config déjà testée), `UNVALIDATED_*` (`weekend`/`jour_ferie`/`nb_usagers`, disponibles dans
   Gold mais jamais testés dans aucun notebook — à comparer au protocole avant adoption, pas à
   utiliser d'office). **Vérifié en reproduisant le protocole complet** (LightGBM + seuil calibré
-  sur validation, cf. `notebooks/eda_baseline_baac.py`) sur la sortie de ce module : recall 0,807
+  sur validation, cf. `notebooks/eda_baseline_baac.ipynb`) sur la sortie de ce module : recall 0,807
   / F1 macro 0,707 contre 0,808/0,708 publiés — reproduction à 0,001 près, seuil calibré identique
   (0,44). **Piège Polars réel trouvé en testant** : caster un entier directement en `Categorical`
   traite sa valeur comme un code de catégorie interne (doit être positif) et non comme un
@@ -181,7 +181,7 @@ CDC sur les deux dépôts.
   **Config `enriched` testée aussi** (2026-08-27, cf. [ml_training_results.md](ml_training_results.md)) :
   cette fois les **3 modèles** franchissent les seuils CDC ; LightGBM enriched (F1 macro 0,727)
   bat le LightGBM baseline (0,707), reproduit la config C de
-  `notebooks/eval_enrichissement_vs_seuil.py` à 0,002 près. **Promu à l'alias `staging`**
+  `notebooks/eval_enrichissement_vs_seuil.ipynb` à 0,002 près. **Promu à l'alias `staging`**
   (`gravia-severity-classifier` v2, décision explicite de l'utilisateur) — rechargé et revérifié
   après promotion (`mlflow.lightgbm.load_model`, prédictions correctes). v1 (baseline) reste dans
   le registry comme historique, accessible via `models:/gravia-severity-classifier/1`.

@@ -245,7 +245,7 @@ erDiagram
     }
 ```
 
-> **Schéma vérifié contre le baseline déjà validé** (`notebooks/eda_baseline_baac.py`, recall 0,808 / F1 macro 0,708) : `DIM_LIEU` reprend tous les attributs `lieux`/`caracteristiques` qu'il utilise (pas seulement les 4 attributs de l'esquisse de départ), sans quoi le schéma en étoile serait structurellement incapable de reproduire ce résultat. `departement` est en `string`, pas `int` : les codes INSEE de Corse (`2A`, `2B`) ne sont pas numériques. Les flags véhicule/usager de `FACT_ACCIDENT` reprennent la configuration réellement validée dans `notebooks/eval_enrichissement_vs_seuil.py`, pas l'esquisse `flag_moto` jamais testée.
+> **Schéma vérifié contre le baseline déjà validé** (`notebooks/eda_baseline_baac.ipynb`, recall 0,808 / F1 macro 0,708) : `DIM_LIEU` reprend tous les attributs `lieux`/`caracteristiques` qu'il utilise (pas seulement les 4 attributs de l'esquisse de départ), sans quoi le schéma en étoile serait structurellement incapable de reproduire ce résultat. `departement` est en `string`, pas `int` : les codes INSEE de Corse (`2A`, `2B`) ne sont pas numériques. Les flags véhicule/usager de `FACT_ACCIDENT` reprennent la configuration réellement validée dans `notebooks/eval_enrichissement_vs_seuil.ipynb`, pas l'esquisse `flag_moto` jamais testée.
 
 > **Anti-leakage** : seules les variables connues **au moment du signalement** alimentent `FACT_ACCIDENT` et les dimensions. Les champs renseignés après enquête (équipement de sécurité, nature précise des blessures, manœuvre) sont **exclus** des features (cf. CDC §3).
 
