@@ -16,11 +16,41 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+#: Exemple réaliste (accident non grave, Paris, journée) affiché par Swagger comme valeur par
+#: défaut sur `/docs` — évite le générique `0`/`"string"`/`true` de FastAPI. Réutilisé tel quel
+#: par les tests (`tests/integration/test_serving_api.py`) pour ne pas maintenir deux exemples.
+EXAMPLE_REQUEST: dict[str, object] = {
+    "moment": "2026-09-20T14:30:00",
+    "departement": "75",
+    "agglomeration": True,
+    "intersection": 1,
+    "categorie_route": 4,
+    "regime_circulation": 2,
+    "nb_voies": 2,
+    "voie_reservee": 0,
+    "profil_route": 1,
+    "trace_plan": 1,
+    "vitesse_max": 50,
+    "infrastructure": 0,
+    "situation": 1,
+    "luminosite": 1,
+    "meteo": 1,
+    "etat_surface": 1,
+    "type_collision": 3,
+    "nb_vehicules": 2,
+    "flag_2roues_motorise": True,
+    "flag_poids_lourd": False,
+    "flag_velo_edp": False,
+    "flag_pieton": False,
+}
 
 
 class PredictSeverityRequest(BaseModel):
     """Caractéristiques d'un accident connues au moment du signalement."""
+
+    model_config = ConfigDict(json_schema_extra={"example": EXAMPLE_REQUEST})
 
     moment: datetime = Field(..., description="Date et heure du signalement (ISO 8601).")
 

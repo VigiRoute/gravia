@@ -12,6 +12,7 @@ import pytest
 import sqlalchemy as sa
 
 from gravia.config import get_settings
+from ml.serving.schemas import EXAMPLE_REQUEST
 
 
 def _mlflow_reachable() -> bool:
@@ -43,30 +44,8 @@ def client():
         yield test_client
 
 
-_VALID_PAYLOAD = {
-    "moment": "2026-08-27T14:30:00",
-    "departement": "75",
-    "agglomeration": True,
-    "intersection": 1,
-    "categorie_route": 4,
-    "regime_circulation": 2,
-    "nb_voies": 2,
-    "voie_reservee": 0,
-    "profil_route": 1,
-    "trace_plan": 1,
-    "vitesse_max": 50,
-    "infrastructure": 0,
-    "situation": 1,
-    "luminosite": 1,
-    "meteo": 1,
-    "etat_surface": 1,
-    "type_collision": 3,
-    "nb_vehicules": 2,
-    "flag_2roues_motorise": True,
-    "flag_poids_lourd": False,
-    "flag_velo_edp": False,
-    "flag_pieton": False,
-}
+# Réutilise l'exemple affiché sur /docs plutôt que d'en maintenir un second en parallèle.
+_VALID_PAYLOAD = EXAMPLE_REQUEST
 
 
 def test_health_reports_model_loaded(client) -> None:
