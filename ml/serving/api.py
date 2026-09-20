@@ -104,13 +104,13 @@ def _request_fields_reference() -> str:
 _PREDICT_DESCRIPTION = f"""Estime la gravité probable d'un accident à partir des caractéristiques
 connues au moment du signalement.
 
-**Assiste, ne décide pas** (human-in-the-loop, CDC_GRAVIA.md EC-7) : cette réponse est une
-estimation destinée à l'opérateur, pas une action de dispatching.
+**Assiste, ne décide pas** (human-in-the-loop) : cette réponse est une estimation destinée à
+l'opérateur, pas une action de dispatching.
 
 ### Valeurs possibles par champ
 
-Les codes numériques reprennent le dictionnaire officiel ONISR (cf. CLAUDE.md) ; `-1` signifie
-« non renseigné » pour la quasi-totalité d'entre eux.
+Les codes numériques reprennent le dictionnaire officiel ONISR ; `-1` signifie « non renseigné »
+pour la quasi-totalité d'entre eux.
 
 {_request_fields_reference()}
 """
