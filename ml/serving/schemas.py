@@ -122,8 +122,8 @@ class FeatureContribution(BaseModel):
 class PredictSeverityResponse(BaseModel):
     """Réponse de `POST /v1/predict-severity`.
 
-    Une estimation, pas une décision (human-in-the-loop, cf. CDC_GRAVIA.md EC-7) : à l'opérateur
-    d'arbitrer, ce endpoint ne déclenche aucune action.
+    Une estimation, pas une décision (human-in-the-loop) : à l'opérateur d'arbitrer, ce endpoint
+    ne déclenche aucune action.
     """
 
     gravite_predite: str = Field(..., description="'grave' ou 'non_grave'.")
