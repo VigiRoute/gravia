@@ -6,8 +6,15 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-13 — dashboard Grafana latence/débit/erreurs de l'API
-(`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de
+**Dernière mise à jour :** 2026-09-20 — les 11 scripts `.py` de `notebooks/` sont désormais de
+vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
+pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
+reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
+test de Welch cité mais jamais calculé, et une valeur sentinelle DATEX2 non filtrée dans des
+statistiques trafic.
+
+**Dernière mise à jour structurante :** 2026-09-13 — dashboard Grafana latence/débit/erreurs de
+l'API (`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de
 `Architecture_GRAVIA.md` §9 restée non livrée, désormais faite et vérifiée sur trafic réel.
 **Les deux dépôts de la certification sont désormais complets** sur toutes les briques prévues
 par le CDC, y compris l'observabilité (ENF-7).
@@ -31,7 +38,7 @@ CDC sur les deux dépôts.
 
 - **Cadrage & gouvernance** — CDC, architecture de données, plan de gouvernance, AIPD et
   présentation Jedha rédigés ([docs/](.)).
-- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — scripts `.py`, pas des notebooks Jupyter ; la plupart sont des évaluations de modèle, plus deux vraies EDA visuelles : `eda_raw_baac.ipynb` §0a sur le **brut** (audite les décisions de nettoyage Silver/Gold — a trouvé et fait corriger un artefact Excel non documenté sur `nbv` et un angle mort défensif dans l'agrégation `is_grave`) et `eda_exploration_baac.ipynb` §0b sur **Gold** — distribution de la cible, non-renseigné par feature, gravité par département et par feature) :
+- **Explorations et décisions produit** (voir [notebooks/README.md](../notebooks/README.md) pour le détail — 11 vrais notebooks Jupyter (`.ipynb`) exécutés, pas des scripts `.py` ; la plupart sont des évaluations de modèle, plus deux vraies EDA visuelles : `eda_raw_baac.ipynb` §0a sur le **brut** (audite les décisions de nettoyage Silver/Gold — a trouvé et fait corriger un artefact Excel non documenté sur `nbv` et un angle mort défensif dans l'agrégation `is_grave`) et `eda_exploration_baac.ipynb` §0b sur **Gold** — distribution de la cible, non-renseigné par feature, gravité par département et par feature) :
   - Baseline BAAC seul validée : recall 0,808 / F1 macro 0,708 (holdout 2023) — les deux seuils
     CDC sont atteints sans aucun enrichissement.
   - Enrichissement trafic (DATEX national + capteurs Paris) testé en modèle et **écarté** :
