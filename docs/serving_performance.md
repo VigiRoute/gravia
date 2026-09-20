@@ -1,14 +1,14 @@
-# Performance du serving — GRAVIA
+# Performance du serving : GRAVIA
 
 `docs/ml_training_results.md` compare les modèles sur recall/F1 (la justesse). Ce document
 répond à une question différente, posée après coup : **a-t-on vérifié la performance pure**, pas
-seulement la précision ? Réponse courte : pas au début — un premier test était trompeur — mais
+seulement la précision ? Réponse courte : pas au début (un premier test était trompeur), mais
 oui maintenant, sur deux angles distincts.
 
 > ⚠️ **Ces chiffres sont propres à la machine de développement sur laquelle ils ont été mesurés**
 > (16 cœurs, Docker Desktop sur Windows via WSL2/Hyper-V), pas des valeurs absolues transférables
 > telles quelles à un autre poste ou à la cible prod (EKS). Le client de charge et le serveur
-> tournaient sur la **même machine, en localhost** — ils se disputent le même CPU, une situation
+> tournaient sur la **même machine, en localhost** : ils se disputent le même CPU, une situation
 > qui n'existe pas en déploiement réel (client et serveur sur des machines séparées, vrai réseau).
 > Une virtualisation différente, un nombre de cœurs différent, ou simplement d'autres programmes
 > actifs pendant la mesure changeraient les millisecondes exactes.
@@ -23,7 +23,7 @@ oui maintenant, sur deux angles distincts.
 
 ### Le problème : un test séquentiel donne une fausse impression
 
-Un premier test (une requête à la fois, via `TestClient`, en process) affichait **p95 = 16 ms** —
+Un premier test (une requête à la fois, via `TestClient`, en process) affichait **p95 = 16 ms**,
 largement sous la cible CDC (ENF-1 : p95 < 300 ms). Rassurant, mais trompeur : un test séquentiel
 ne dit rien de ce qui se passe quand plusieurs opérateurs signalent un accident en même temps.
 
@@ -33,13 +33,13 @@ ne dit rien de ce qui se passe quand plusieurs opérateurs signalent un accident
 vraies requêtes HTTP en parallèle (pas un aller-retour en process) contre le conteneur `serving`
 réel, à plusieurs paliers de concurrence.
 
-**Avant correctif** (1 seul worker uvicorn — configuration d'origine) :
+**Avant correctif** (1 seul worker uvicorn, configuration d'origine) :
 
 | Concurrence | Débit | p95 |
 |---:|---:|---:|
 | 1 | 57 req/s | 24 ms |
 | 10 | 65 req/s | 188 ms |
-| 25 | 65 req/s | **424 ms — au-dessus du seuil CDC (&lt; 300 ms), non conforme** |
+| 25 | 65 req/s | **424 ms : au-dessus du seuil CDC (&lt; 300 ms), non conforme** |
 | 50 | 65 req/s | 803 ms |
 
 Le débit plafonne à ~65 req/s **quelle que soit la concurrence** : signature classique d'un
@@ -58,16 +58,16 @@ plus de sérialisation par un seul GIL partagé).
 | 1 | 62 req/s | 23 ms |
 | 10 | 188 req/s | 101 ms |
 | 25 | 217 req/s | 171 ms |
-| 50 | 227 req/s | **301 ms — à la limite** |
+| 50 | 227 req/s | **301 ms : à la limite** |
 
 Débit ×3-4, et p95 repasse sous 300 ms jusqu'à ~25-40 requêtes simultanées. À 50 requêtes
-simultanées c'est à la limite (301 ms, max observé 416 ms) — capacité réelle du conteneur dev
+simultanées c'est à la limite (301 ms, max observé 416 ms) : capacité réelle du conteneur dev
 actuel, pas dimensionné pour une charge de production (la cible reste EKS + autoscaling, cf.
 [Architecture_GRAVIA.md §6.2](Architecture_GRAVIA.md)).
 
 ## 2. Latence de prédiction pure, par modèle
 
-Question distincte : le benchmark de `ml/training` compare recall/F1, pas la vitesse — un modèle
+Question distincte : le benchmark de `ml/training` compare recall/F1, pas la vitesse ; un modèle
 moins bon aurait pu rester pertinent s'il était nettement plus rapide.
 [`tests/performance/compare_model_latency.py`](../tests/performance/compare_model_latency.py)
 mesure le coût de calcul du modèle seul (sans HTTP, une prédiction à la fois, comme le fait
@@ -87,7 +87,7 @@ Forest** (300 arbres parcourus en entier à chaque prédiction). Aucun compromis
 SHAP (l'explication de chaque prédiction, cf. `ml/serving`) n'est mesuré que pour LightGBM :
 régression logistique et Random Forest sont enveloppés dans un `sklearn.Pipeline`
 (`OneHotEncoder` + classifieur) pour l'encodage catégoriel, et `shap.TreeExplainer` ne s'applique
-ni à un `Pipeline` tel quel ni à un modèle linéaire — cohérent avec le fait que seul LightGBM est
+ni à un `Pipeline` tel quel ni à un modèle linéaire, cohérent avec le fait que seul LightGBM est
 réellement déployé.
 
 ## Suivi en direct (Grafana)

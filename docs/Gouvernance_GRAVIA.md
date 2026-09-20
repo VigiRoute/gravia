@@ -1,10 +1,10 @@
-# Plan de gouvernance des données — GRAVIA
+# Plan de gouvernance des données : GRAVIA
 
-> **Projet** : GRAVIA — Aide à la décision pour la priorisation des secours routiers
-> **Organisation (fictive)** : VigiRoute — opérateur d'intérêt public
-> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, périmètre réel confirmé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Projet** : GRAVIA, aide à la décision pour la priorisation des secours routiers
+> **Organisation (fictive)** : VigiRoute, opérateur d'intérêt public
+> **Version** : 0.2 (révisé après implémentation : cadrage initial du 2026-06-29, périmètre réel confirmé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
 > **Date de dernière révision** : 2026-09-13
-> **Bloc RNCP** : Bloc 1 — Piloter la gouvernance des données
+> **Bloc RNCP** : Bloc 1, Piloter la gouvernance des données
 > **Documents liés** : [Cahier des charges](CDC_GRAVIA.md) · [Architecture](Architecture_GRAVIA.md) · [AIPD](AIPD_GRAVIA.md)
 
 ## Table des matières
@@ -49,7 +49,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 |---|---|---|---|
 | Données non personnelles | Conditions météo (déjà portées par le BAAC), trafic DATEX exploré en batch (testé puis écarté comme feature de modèle), type de route, type de collision | Public | Libre |
 | **Données personnelles** | Âge, géolocalisation précise | Restreint | Pseudonymisation |
-| **Données personnelles, conservées telles quelles** | Sexe (nécessaire à l'audit d'équité EC-6), motif de trajet | Restreint | Non transformées — cf. AIPD §2.2 |
+| **Données personnelles, conservées telles quelles** | Sexe (nécessaire à l'audit d'équité EC-6), motif de trajet | Restreint | Non transformées (cf. AIPD §2.2) |
 | **Données sensibles (art. 9 RGPD)** | **Gravité = donnée de santé** | Confidentiel | Accès strict, AIPD |
 | Données opérationnelles (prod) | Signalement temps réel d'une victime identifiable | Confidentiel | Chiffrement, accès strict, traçabilité |
 
@@ -101,33 +101,33 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 
 | Dimension | Règle | Contrôle |
 |---|---|---|
-| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}` — `-1` = non renseigné, codé explicitement par le BAAC, cf. [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md)) |
+| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}`, `-1` = non renseigné, codé explicitement par le BAAC, cf. [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md)) |
 | Complétude | Champs clés non nuls (identifiant, date, lieu) | Tests de complétude par millésime |
-| Cohérence | Plausibilité (âge ≤ 110 ans, borné en Silver ; `an`, `vma`/`nbv` bornés en Great Expectations ; `dep` non nul mais sans borne de valeur) | Règles de validation — les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
+| Cohérence | Plausibilité (âge ≤ 110 ans, borné en Silver ; `an`, `vma`/`nbv` bornés en Great Expectations ; `dep` non nul mais sans borne de valeur) | Règles de validation ; les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
 | Unicité | Pas de doublons d'accidents | Déduplication en Silver |
 | Traçabilité | Lineage des transformations Bronze→Silver→Gold | Journalisation + métadonnées |
 
-Tout lot non conforme **bloque la promotion vers Gold** (échec de la tâche `quality` du DAG Airflow, cf. `src/gravia/quality.py::SilverQualityError`) — le Parquet Silver déjà écrit n'est ni déplacé ni supprimé (pas de quarantaine physique) et aucune notification automatique n'est envoyée au data steward à ce jour ; ces deux points restent des mesures cibles.
+Tout lot non conforme **bloque la promotion vers Gold** (échec de la tâche `quality` du DAG Airflow, cf. `src/gravia/quality.py::SilverQualityError`) ; le Parquet Silver déjà écrit n'est ni déplacé ni supprimé (pas de quarantaine physique) et aucune notification automatique n'est envoyée au data steward à ce jour ; ces deux points restent des mesures cibles.
 
 ## 7. Politique de sécurité et de confidentialité
 
 | Mesure | Mise en œuvre | Statut |
 |---|---|---|
-| Chiffrement au repos | S3/RDS chiffrés | À implémenter — cible prod, pas de cloud réel déployé à ce jour |
-| Chiffrement en transit | TLS systématique | À implémenter — stack dev en HTTP local |
-| Pseudonymisation | Dès la couche Silver | **Fait** — vérifié sur les 5 millésimes réels (cf. AIPD §5) |
-| Contrôle d'accès | Moindre privilège (IAM, rôles PostgreSQL), authentification forte (portée précisée ci-dessous) | À implémenter — cible prod |
+| Chiffrement au repos | S3/RDS chiffrés | À implémenter : cible prod, pas de cloud réel déployé à ce jour |
+| Chiffrement en transit | TLS systématique | À implémenter : stack dev en HTTP local |
+| Pseudonymisation | Dès la couche Silver | **Fait** : vérifié sur les 5 millésimes réels (cf. AIPD §5) |
+| Contrôle d'accès | Moindre privilège (IAM, rôles PostgreSQL), authentification forte (portée précisée ci-dessous) | À implémenter : cible prod |
 | Gestion des secrets | `.env` (dev) / Secrets Manager (prod) ; jamais dans Git | **Fait** en dev (`.env` gitignoré) |
-| Cloisonnement | Séparation des environnements dev / prod | **Fait** — Docker Compose (dev) / Terraform-LocalStack (cible prod), jamais mélangés |
-| Journalisation | Logs d'accès et de prédictions horodatés | **Partiel** — prédictions journalisées en logs structurés ; pas encore de registre interrogeable 12 mois (cf. AIPD §5) |
+| Cloisonnement | Séparation des environnements dev / prod | **Fait** : Docker Compose (dev) / Terraform-LocalStack (cible prod), jamais mélangés |
+| Journalisation | Logs d'accès et de prédictions horodatés | **Partiel** : prédictions journalisées en logs structurés ; pas encore de registre interrogeable 12 mois (cf. AIPD §5) |
 
-> **Portée de « authentification forte »** : cette politique vise la **surface exposée** — l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut — `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée ([Architecture_GRAVIA.md §2.1](Architecture_GRAVIA.md)) — pas une dérogation silencieuse à la politique de sécurité de production.
+> **Portée de « authentification forte »** : cette politique vise la **surface exposée** : l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut : `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée ([Architecture_GRAVIA.md §2.1](Architecture_GRAVIA.md)) ; pas une dérogation silencieuse à la politique de sécurité de production.
 
 ## 8. Disponibilité et continuité
 
 - Objectif de disponibilité de l'API : ≥ 99,5 %/mois.
-- **Fait** : retries des tâches Airflow (`default_args={"retries": 2}`, `pipelines/airflow/dags/etl_medallion_dag.py`), redémarrage automatique des conteneurs de la stack dev (`restart: unless-stopped`, `infra/docker-compose.yml`) et des pods K8s (vérifié sur cluster `kind` réel, cf. `AVANCEMENT_GRAVIA.md`). Trouvé sans configuration en auditant cette affirmation (`default_task_retries=0` constaté sur le scheduler réel) — corrigé.
-- **À implémenter** : redondance du stockage (S3/RDS) et sauvegardes testées — politique cible pour la production, non déployée à ce jour (cf. AIPD §5, plan d'action).
+- **Fait** : retries des tâches Airflow (`default_args={"retries": 2}`, `pipelines/airflow/dags/etl_medallion_dag.py`), redémarrage automatique des conteneurs de la stack dev (`restart: unless-stopped`, `infra/docker-compose.yml`) et des pods K8s (vérifié sur cluster `kind` réel, cf. `AVANCEMENT_GRAVIA.md`). Trouvé sans configuration en auditant cette affirmation (`default_task_retries=0` constaté sur le scheduler réel). Corrigé.
+- **À implémenter** : redondance du stockage (S3/RDS) et sauvegardes testées ; politique cible pour la production, non déployée à ce jour (cf. AIPD §5, plan d'action).
 
 ## 9. Cycle de vie et conservation des données
 
@@ -184,7 +184,7 @@ Procédure en cas de violation :
 | Ré-identification d'une victime | Élevée | Pseudonymisation, agrégation géo | Notification, retrait des données concernées |
 | Violation de données (fuite) | Élevée | Chiffrement, accès restreint | Procédure §11, notification CNIL |
 | Biais discriminatoire du modèle | Élevée | Tests d'équité, atténuation, human-in-the-loop | Suspension du scoring, réentraînement |
-| Dérive des données | Moyenne | Monitoring Evidently (`ml/monitoring/drift.py`, lancé à la main) | Réentraînement manuel/calendaire à ce jour (`workflow_dispatch` + trimestriel) — le déclenchement automatique par dérive détectée est visé (CDC EF-6), pas encore câblé |
+| Dérive des données | Moyenne | Monitoring Evidently (`ml/monitoring/drift.py`, lancé à la main) | Réentraînement manuel/calendaire à ce jour (`workflow_dispatch` + trimestriel) ; le déclenchement automatique par dérive détectée est visé (CDC EF-6), pas encore câblé |
 | Indisponibilité de l'API | Moyenne | Redondance, supervision | Bascule mode dégradé (décision humaine seule) |
 | Erreur humaine de manipulation | Moyenne | Formation, moindre privilège | Restauration depuis sauvegarde |
 
@@ -197,19 +197,19 @@ Procédure en cas de violation :
 ## 16. Références
 
 - [Cahier des charges GRAVIA](CDC_GRAVIA.md) · [Architecture GRAVIA](Architecture_GRAVIA.md) · [AIPD GRAVIA](AIPD_GRAVIA.md)
-- RGPD — Règlement (UE) 2016/679 (art. 6, 9, 22, 33, 34, 35)
+- RGPD, Règlement (UE) 2016/679 (art. 6, 9, 22, 33, 34, 35)
 - Loi n° 78-17 Informatique et Libertés
 - ISO/IEC 27001 · Recommandations ANSSI · RGAA
-- Méthodologie AIPD — CNIL
+- Méthodologie AIPD (CNIL)
 
 ---
 
-## Annexe — Correspondance avec le référentiel (Bloc 1)
+## Annexe : Correspondance avec le référentiel (Bloc 1)
 
 | Compétence | Couverture dans ce document |
 |---|---|
-| C1.1 — Concevoir une politique de Data Gouvernance avec les parties prenantes | Ce document dans son ensemble ; parties prenantes impliquées §5 |
-| C1.2 — Collaborer avec les parties prenantes pour intégrer la politique | §5 (rôles, matrice RACI) |
-| C1.3 — Former et sensibiliser les collaborateurs, y compris en situation de handicap | §13 |
-| C1.4 — Réaliser des audits réguliers de conformité | §12 |
-| C1.5 — Évaluer les risques (qualité, sécurité) | §14 ; risques spécifiques aux données de santé et à l'IA détaillés dans l'[AIPD](AIPD_GRAVIA.md) §4 |
+| C1.1 : Concevoir une politique de Data Gouvernance avec les parties prenantes | Ce document dans son ensemble ; parties prenantes impliquées §5 |
+| C1.2 : Collaborer avec les parties prenantes pour intégrer la politique | §5 (rôles, matrice RACI) |
+| C1.3 : Former et sensibiliser les collaborateurs, y compris en situation de handicap | §13 |
+| C1.4 : Réaliser des audits réguliers de conformité | §12 |
+| C1.5 : Évaluer les risques (qualité, sécurité) | §14 ; risques spécifiques aux données de santé et à l'IA détaillés dans l'[AIPD](AIPD_GRAVIA.md) §4 |
