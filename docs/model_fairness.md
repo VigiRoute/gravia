@@ -1,4 +1,4 @@
-# Équité du modèle — GRAVIA
+# Équité du modèle : GRAVIA
 
 Réponds au CDC EC-6 : *« IA éthique : tests d'équité (parité selon âge/sexe, equalized odds),
 documentation et atténuation des biais »*. Produit par
@@ -9,18 +9,18 @@ l'entraînement, même protocole que le reste du benchmark, cf.
 ## Méthodologie
 
 Le modèle ne reçoit ni l'âge ni le sexe en feature (cf.
-[`ml/features/gold_features.py`](../ml/features/gold_features.py)) — ce test vérifie que ses
+[`ml/features/gold_features.py`](../ml/features/gold_features.py)) : ce test vérifie que ses
 prédictions ne sont pas systématiquement moins fiables pour un sous-groupe protégé malgré cela.
 L'équité peut se rompre via des corrélations indirectes (type de véhicule, zone, vitesse
 autorisée…) sans jamais utiliser l'attribut sensible en entrée : c'est précisément ce qu'un test
 d'équité doit détecter.
 
 **Attribut sensible retenu : le conducteur** (`catu == 1`, rubrique usagers). **Limité aux
-accidents à un seul conducteur identifié** — 20 830 sur 54 822 accidents du test 2023 (38 %) :
+accidents à un seul conducteur identifié**, soit 20 830 sur 54 822 accidents du test 2023 (38 %) :
 la majorité des accidents impliquent plusieurs véhicules donc plusieurs conducteurs, dont le
 sexe et la tranche d'âge peuvent différer, sans façon non arbitraire de n'en retenir un seul.
 Retenir le conducteur le plus gravement blessé aurait biaisé le test en sélectionnant sur
-l'issue même qu'on évalue (fuite méthodologique) — écarté pour cette raison. Cette limite de
+l'issue même qu'on évalue (fuite méthodologique). Écarté pour cette raison. Cette limite de
 portée est assumée, pas cachée : les résultats ci-dessous caractérisent le sous-ensemble
 « accidents à un seul véhicule/conducteur clairement identifiable », pas l'ensemble du trafic.
 
@@ -29,7 +29,7 @@ Deux métriques par sous-groupe :
 - ***Equalized odds*** : rappel/TPR (`recall`) et taux de faux positifs (`fpr`) par groupe,
   rapportés en écart absolu entre sous-groupes. **Aucun seuil pass/fail n'est imposé** :
   contrairement à PSI/recall/F1/couverture (cf. [CDC_GRAVIA.md §11](CDC_GRAVIA.md)), le CDC ne
-  fixe aucun seuil numérique pour l'équité — en inventer un ici serait arbitraire, pas une
+  fixe aucun seuil numérique pour l'équité : en inventer un ici serait arbitraire, pas une
   exigence retranscrite. Les écarts sont documentés pour arbitrage, à l'image de l'angle mort
   déjà documenté du seuil unique par département ([CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)).
 
@@ -45,7 +45,7 @@ Deux métriques par sous-groupe :
 *Effectifs (4 884 + 15 259 = 20 143) inférieurs aux 20 830 accidents à conducteur unique : 687
 conducteurs au sexe non renseigné (`sexe = -1`) sont exclus de ce tableau.*
 
-**Écart de rappel : 0,007 · Écart de FPR : 0,019** — parité quasi parfaite entre sexes sur les
+**Écart de rappel : 0,007 · Écart de FPR : 0,019** : parité quasi parfaite entre sexes sur les
 deux métriques d'*equalized odds*. Le taux de gravité réelle diffère (hommes plus impliqués dans
 des accidents graves, cohérent avec les statistiques de sécurité routière connues), mais le
 modèle ne traite pas les deux groupes différemment à gravité égale.
@@ -69,35 +69,35 @@ manquant ou aberrant) sont exclus de ce tableau.*
 
 Le rappel reste relativement homogène (0,854 à 0,898). **La disparité se concentre sur le taux
 de faux positifs** : les conducteurs mineurs (0-17, FPR = 0,584) et seniors (65+, FPR = 0,500)
-sont significativement plus souvent classés « grave » à tort que les 25-34 ans (FPR = 0,393) —
-un écart de 19 points de pourcentage. Autrement dit, **parmi les accidents réellement non
+sont significativement plus souvent classés « grave » à tort que les 25-34 ans (FPR = 0,393),
+soit un écart de 19 points de pourcentage. Autrement dit, **parmi les accidents réellement non
 graves**, le modèle sur-signale les jeunes et les seniors comme graves près d'une fois sur deux,
 contre une fois sur quatre pour les 25-34 ans.
 
 ![Rappel et FPR par sexe et par tranche d'âge du conducteur](img/fairness_gaps.png)
 
 *Généré par [`docs/generate_result_charts.py`](generate_result_charts.py), recalculé contre la
-stack dev réelle (`python -m docs.generate_result_charts`) — pas une resaisie manuelle des
+stack dev réelle (`python -m docs.generate_result_charts`), pas une resaisie manuelle des
 chiffres ci-dessus.*
 
 ## Interprétation et portée
 
-- **Pas de biais discriminatoire par sexe** détecté sur ce sous-ensemble — écarts d'*equalized
+- **Pas de biais discriminatoire par sexe** détecté sur ce sous-ensemble : écarts d'*equalized
   odds* inférieurs à 2 points de pourcentage sur les deux métriques.
 - **Biais réel par âge, concentré sur le FPR** : cohérent avec un signal statistique plausible
   (jeunes et seniors surreprésentés dans les accidents graves en général, cf. `taux_grave_reel`
   plus élevé pour 0-17 et 65+ déjà dans les données réelles), mais le modèle **amplifie** cet
-  écart au-delà du taux réel — sur-prédire "grave" pour ces groupes n'a pas le même coût qu'un
+  écart au-delà du taux réel ; sur-prédire "grave" pour ces groupes n'a pas le même coût qu'un
   faux négatif (sur-priorisation de secours plutôt que sous-priorisation), mais reste une
   iniquité mesurable à ne pas ignorer.
-- **Tension non résolue, à arbitrer avant production** — dans l'esprit de l'angle mort du seuil
+- **Tension non résolue, à arbitrer avant production**, dans l'esprit de l'angle mort du seuil
   unique déjà documenté (CDC §13.7/§14) : corriger ce biais demanderait probablement
   un seuil de décision différencié par tranche d'âge (comme envisagé par zone géographique),
   avec le même arbitrage à faire entre équité locale et simplicité/performance globale du seuil
   unique actuel. **Non traité ici** : ce document constate et documente le biais (exigence
   CDC EC-6), l'atténuation active reste une piste future, pas un correctif appliqué au modèle
   déployé (`gravia-severity-classifier@staging`, LightGBM enriched).
-- **Portée limitée aux accidents à un seul conducteur (38 % du test 2023)** — les accidents
+- **Portée limitée aux accidents à un seul conducteur (38 % du test 2023)** : les accidents
   multi-véhicules, majoritaires, ne sont pas couverts par cette analyse (cf. Méthodologie).
 
 ## Reproduire cette analyse

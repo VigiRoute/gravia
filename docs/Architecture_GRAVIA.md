@@ -1,9 +1,9 @@
-# Architecture de données — GRAVIA
+# Architecture de données : GRAVIA
 
-> **Projet** : GRAVIA — Aide à la décision pour la priorisation des secours routiers
-> **Version** : 0.2 (révisé après implémentation — cadrage initial du 2026-06-29, périmètre réel confirmé/corrigé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
+> **Projet** : GRAVIA, aide à la décision pour la priorisation des secours routiers
+> **Version** : 0.2 (révisé après implémentation : cadrage initial du 2026-06-29, périmètre réel confirmé/corrigé au 2026-09-13, cf. [AVANCEMENT_GRAVIA.md](AVANCEMENT_GRAVIA.md))
 > **Date de dernière révision** : 2026-09-13
-> **Bloc RNCP** : Bloc 2 — Concevoir des architectures de données (pour l'IA)
+> **Bloc RNCP** : Bloc 2, Concevoir des architectures de données (pour l'IA)
 > **Document amont** : [Cahier des charges](CDC_GRAVIA.md)
 
 ---
@@ -12,9 +12,9 @@
 
 | Dimension | Besoin / contrainte |
 |---|---|
-| **Volume** | BAAC ~2005→2024, quelques millions de lignes `usagers` (< 10 Go) — **tient en mémoire** |
-| **Variété** | Structuré (BAAC, CSV) réellement exploité ; semi-structuré (trafic XML DATEX) **exploré en batch**, testé comme feature d'entraînement et écarté (gain prédictif nul) — météo/géo externes envisagées au cadrage, jamais engagées (BAAC porte déjà `atm`/`catr`/`vma`/`nbv`) |
-| **Vélocité** | Batch (millésimes annuels) uniquement. Une ingestion temps réel des signalements était visée au cadrage (bus de messages provisionné) mais le pipeline applicatif n'a pas été implémenté — scope assumé, cf. §2.3 |
+| **Volume** | BAAC ~2005→2024, quelques millions de lignes `usagers` (< 10 Go), **tient en mémoire** |
+| **Variété** | Structuré (BAAC, CSV) réellement exploité ; semi-structuré (trafic XML DATEX) **exploré en batch**, testé comme feature d'entraînement et écarté (gain prédictif nul) ; météo/géo externes envisagées au cadrage, jamais engagées (BAAC porte déjà `atm`/`catr`/`vma`/`nbv`) |
+| **Vélocité** | Batch (millésimes annuels) uniquement. Une ingestion temps réel des signalements était visée au cadrage (bus de messages provisionné) mais le pipeline applicatif n'a pas été implémenté (scope assumé, cf. §2.3) |
 | **Latence de prédiction** | API temps réel p95 < 300 ms |
 | **Sécurité / conformité** | Données personnelles + **santé** (gravité) → chiffrement, accès restreint, RGPD, AIPD |
 | **Coût** | Priorité au **gratuit / open source** ; pas d'accès à un cloud payant |
@@ -45,7 +45,7 @@
 | IaC | **Terraform via LocalStack** | **Terraform → AWS** |
 | CI/CD | GitHub Actions | GitHub Actions |
 
-> **Stratégie de déploiement — portée exacte de la démonstration LocalStack.** Le **même code Terraform** (mêmes modules, mêmes ressources) cible LocalStack ou AWS réel : seuls l'endpoint et les identifiants changent, aucune ligne d'IaC n'est spécifique à l'émulateur. Le `terraform apply` contre **LocalStack** (émulation locale et gratuite de l'API AWS) est un déploiement **réel** du code d'infrastructure — ressources effectivement créées, dépendances résolues, aucun plan simulé. **Ce que ça démontre** : l'IaC de production est complet et exécutable de bout en bout. **Ce que ça ne démontre pas** : une charge de production réelle (trafic utilisateur, coûts, latence réseau inter-AZ, SLA) — hors de portée sans budget cloud payant. Le référentiel autorisant une démonstration « dans le cloud ou on-premise », LocalStack (exécution locale, API cloud fidèle) se situe explicitement à cette frontière. L'architecture **cible AWS** est intégralement documentée pour la bascule réelle et pour la défense orale.
+> **Stratégie de déploiement : portée exacte de la démonstration LocalStack.** Le **même code Terraform** (mêmes modules, mêmes ressources) cible LocalStack ou AWS réel : seuls l'endpoint et les identifiants changent, aucune ligne d'IaC n'est spécifique à l'émulateur. Le `terraform apply` contre **LocalStack** (émulation locale et gratuite de l'API AWS) est un déploiement **réel** du code d'infrastructure : ressources effectivement créées, dépendances résolues, aucun plan simulé. **Ce que ça démontre** : l'IaC de production est complet et exécutable de bout en bout. **Ce que ça ne démontre pas** : une charge de production réelle (trafic utilisateur, coûts, latence réseau inter-AZ, SLA), hors de portée sans budget cloud payant. Le référentiel autorisant une démonstration « dans le cloud ou on-premise », LocalStack (exécution locale, API cloud fidèle) se situe explicitement à cette frontière. L'architecture **cible AWS** est intégralement documentée pour la bascule réelle et pour la défense orale.
 
 ### 2.2 Schéma logique
 
@@ -90,20 +90,20 @@ flowchart LR
     O -.pilote.-> G
 ```
 
-Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources actives du diagramme : aucune des trois n'alimente le pipeline (cf. §2.3). Le bus Redpanda/Kafka est provisionné dans la stack dev (démonstration de la capacité) mais n'a aucun producteur ni consommateur applicatif branché dessus. L'entraînement (`M`) n'est pas piloté par Airflow — le DAG (`pipelines/airflow/dags/etl_medallion_dag.py`) ne contient que les tâches `bronze`/`silver`/`quality`/`gold` ; l'entraînement se lance en ligne de commande ou via `.github/workflows/retrain.yml` (GitHub Actions). Evidently (`EV`) lit directement Gold et le modèle MLflow (`ml/monitoring/drift.py`), pas l'API.
+Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources actives du diagramme : aucune des trois n'alimente le pipeline (cf. §2.3). Le bus Redpanda/Kafka est provisionné dans la stack dev (démonstration de la capacité) mais n'a aucun producteur ni consommateur applicatif branché dessus. L'entraînement (`M`) n'est pas piloté par Airflow : le DAG (`pipelines/airflow/dags/etl_medallion_dag.py`) ne contient que les tâches `bronze`/`silver`/`quality`/`gold` ; l'entraînement se lance en ligne de commande ou via `.github/workflows/retrain.yml` (GitHub Actions). Evidently (`EV`) lit directement Gold et le modèle MLflow (`ml/monitoring/drift.py`), pas l'API.
 
 ### 2.3 Origine des flux et du temps réel
 
 | Flux | Origine envisagée | Statut réel |
 |---|---|---|
-| Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | **Réel** — seule source effectivement ingérée |
-| **Signalements** (à scorer) | Simulateur de rejeu : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Non implémenté** — aucun producteur de rejeu construit. Le scoring réel se fait de façon synchrone via l'API REST (`POST /v1/predict-severity`) |
+| Historique accidents | Fichiers **BAAC** (data.gouv.fr), batch annuel | **Réel** : seule source effectivement ingérée |
+| **Signalements** (à scorer) | Simulateur de rejeu : un producteur relit le BAAC et le réinjecte dans Redpanda/Kafka, horodaté comme un flux live | **Non implémenté** : aucun producteur de rejeu construit. Le scoring réel se fait de façon synchrone via l'API REST (`POST /v1/predict-severity`) |
 | **Trafic** (firehose visé) | État de circulation RRN + métropoles (débit/occupation, DATEX II), milliers de mesures toutes les 1–6 min | **Exploré en batch uniquement** (snapshots XML téléchargés) : testé comme feature du modèle et écarté (gain prédictif nul, CDC §13.6). Jamais ingéré en flux, aucun bus alimenté |
-| Météo | API Open-Meteo | **Jamais implémentée** — le BAAC porte déjà une variable météo (`atm`) |
+| Météo | API Open-Meteo | **Jamais implémentée** : le BAAC porte déjà une variable météo (`atm`) |
 
-**Choix de périmètre assumé** (même logique que l'arbitrage déjà documenté pour le trafic et les bulletins, CDC §13.6) : le bus de messages (Redpanda, compatible Kafka) est **provisionné** dans la stack dev pour démontrer la capacité d'architecture temps réel attendue par le référentiel, mais **aucun producteur ni consommateur applicatif n'a été implémenté**. Le raisonnement qui justifierait Kafka reste valable en théorie — un flux de signalements seul (~150/jour) est insuffisant, il faudrait un flux à fort volume comme le trafic pour le justifier opérationnellement (aide au routage des secours, indépendamment de son usage en feature) — mais ce flux n'a pas été implémenté dans le périmètre de ce projet, seulement exploré en batch pour évaluer son apport au modèle. **Reste à construire en production** : un producteur (rejeu ou feed réel de l'opérateur) et un consommateur appelant l'API de scoring.
+**Choix de périmètre assumé** (même logique que l'arbitrage déjà documenté pour le trafic et les bulletins, CDC §13.6) : le bus de messages (Redpanda, compatible Kafka) est **provisionné** dans la stack dev pour démontrer la capacité d'architecture temps réel attendue par le référentiel, mais **aucun producteur ni consommateur applicatif n'a été implémenté**. Le raisonnement qui justifierait Kafka reste valable en théorie : un flux de signalements seul (~150/jour) est insuffisant, il faudrait un flux à fort volume comme le trafic pour le justifier opérationnellement (aide au routage des secours, indépendamment de son usage en feature), mais ce flux n'a pas été implémenté dans le périmètre de ce projet, seulement exploré en batch pour évaluer son apport au modèle. **Reste à construire en production** : un producteur (rejeu ou feed réel de l'opérateur) et un consommateur appelant l'API de scoring.
 
-> **Bulletins d'incidents (texte)** — retirés du périmètre (source réelle non identifiée, cf. CDC §13.6). Aucun flux non structuré n'alimente donc le pipeline à ce stade ; la variété du dataset repose sur structuré + semi-structuré uniquement.
+> **Bulletins d'incidents (texte)** : retirés du périmètre (source réelle non identifiée, cf. CDC §13.6). Aucun flux non structuré n'alimente donc le pipeline à ce stade ; la variété du dataset repose sur structuré + semi-structuré uniquement.
 
 ---
 
@@ -111,31 +111,31 @@ Météo, géo et trafic temps réel (DATEX) ne figurent plus comme sources activ
 
 Chaque brique est justifiée au regard des contraintes du projet.
 
-**Principe directeur — dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** se justifierait par un flux haute fréquence — les données de trafic capteur (milliers de mesures/min), utiles opérationnellement (routage des secours) indépendamment de leur usage comme feature du modèle IA — mais ce flux n'a été qu'**exploré en batch**, jamais implémenté en ingestion temps réel (cf. §2.3) : le bus reste provisionné pour démontrer la capacité, non alimenté par une application réelle ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
+**Principe directeur : dimensionner selon le besoin réel.** (1) Le **moteur de traitement** est dimensionné *au plus juste* (Polars plutôt que Spark) ; (2) le **bus temps réel (Kafka/Redpanda)** se justifierait par un flux haute fréquence, les données de trafic capteur (milliers de mesures/min), utiles opérationnellement (routage des secours) indépendamment de leur usage comme feature du modèle IA, mais ce flux n'a été qu'**exploré en batch**, jamais implémenté en ingestion temps réel (cf. §2.3) : le bus reste provisionné pour démontrer la capacité, non alimenté par une application réelle ; (3) **Kubernetes** assure le **scaling horizontal et la haute disponibilité** du service en production.
 
 | Brique | Choix | Justification | Alternative écartée |
 |---|---|---|---|
-| **Moteur de traitement** | **Polars** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais utilisé — tout le traitement passe par Polars (Bronze/Silver/Gold) et SQL PostgreSQL (Gold, `ml/features`) | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
+| **Moteur de traitement** | **Polars** | Volume tient en RAM → plus rapide que Spark, zéro overhead cluster, code Python simple. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais utilisé ; tout le traitement passe par Polars (Bronze/Silver/Gold) et SQL PostgreSQL (Gold, `ml/features`) | **PySpark** : sur-dimensionné pour < 10 Go (over-engineering) |
 | **Stockage Bronze/Silver** | Parquet sur MinIO/S3 | Colonnaire, compressé, standard lakehouse, narratif Medallion | Tout-relationnel : perd le narratif Bronze/Silver |
-| **Stockage Gold** | **PostgreSQL — schéma en étoile** | Modélisation dimensionnelle, requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
+| **Stockage Gold** | **PostgreSQL, schéma en étoile** | Modélisation dimensionnelle, requêtage features, intégrité | Parquet seul : modélisation BDD moins explicite |
 | **Orchestration** | Airflow (Docker) | Standard, DAGs, retries, monitoring, riche pour la démo | Prefect/Dagster : moins répandu en entreprise |
 | **Conteneurisation / scaling** | Docker (dev) → **Kubernetes/EKS** (cible) | Scaling horizontal et **haute disponibilité** du service en production ; orchestration des conteneurs | k8s en dev (sur-ingénierie) ; ECS Fargate (plus simple, moins de contrôle sur l'orchestration) |
 | **Serving** | FastAPI | Performant, async, OpenAPI natif, typé (Pydantic) | Flask : moins adapté au temps réel |
-| **Cache** | Redis (dev) / ElastiCache (prod) | **Provisionné, non utilisé à ce jour** : envisagé au cadrage pour un enrichissement météo temps réel jamais implémenté (§2.3) — aucun module du serving ne s'y connecte. Le serving actuel n'a besoin d'aucun cache pour tenir la latence p95 &lt; 300 ms (cf. `docs/serving_performance.md`) | Aucun cache : pertinent seulement si un enrichissement externe était réintroduit |
-| **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
-| **Tracking / registry** | MLflow | Standard, reproductibilité, registry avec alias `staging` (les stages Staging/Production sont dépréciés depuis MLflow 2.9, remplacés par des alias — `models:/gravia-severity-classifier@staging`, cf. `ml/serving/model.py`) | — |
-| **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | — |
+| **Cache** | Redis (dev) / ElastiCache (prod) | **Provisionné, non utilisé à ce jour** : envisagé au cadrage pour un enrichissement météo temps réel jamais implémenté (§2.3). Aucun module du serving ne s'y connecte. Le serving actuel n'a besoin d'aucun cache pour tenir la latence p95 &lt; 300 ms (cf. `docs/serving_performance.md`) | Aucun cache : pertinent seulement si un enrichissement externe était réintroduit |
+| **Modèle IA** | **Benchmark** : régression logistique (baseline), Random Forest, LightGBM/XGBoost ; modèle retenu selon les métriques | Comparaison reproductible (MLflow) ; gradient boosting anticipé favori sur tabulaire déséquilibré, explicable (SHAP) | Deep learning : inutile sur tabulaire de ce volume |
+| **Tracking / registry** | MLflow | Standard, reproductibilité, registry avec alias `staging` (les stages Staging/Production sont dépréciés depuis MLflow 2.9, remplacés par des alias : `models:/gravia-severity-classifier@staging`, cf. `ml/serving/model.py`) | Aucune |
+| **Qualité données** | Great Expectations | Tests déclaratifs, rapports, intégrable au pipeline | Aucune |
 | **Temps réel** | Redpanda (dev) / Kafka MSK (prod) | **Provisionné, non alimenté** : dimensionné pour absorber un flux trafic haute fréquence (milliers de mesures/min, DATEX II) et les signalements à scorer, mais aucun producteur/consommateur applicatif n'a été implémenté (§2.3) ; compatible Kafka (bascule dev→prod sans code) si le pipeline applicatif est construit | File simple : insuffisante pour ce débit visé ; Kafka complet en dev : lourd (d'où Redpanda) |
-| **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | — |
-| **IaC** | Terraform (LocalStack → AWS) | Même code IaC pour LocalStack et AWS (bascule par endpoint/identifiants) : déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle ; cible AWS documentée | — |
+| **Monitoring** | Prometheus+Grafana (infra) / Evidently (modèle) | Standards, dérive intégrée | Aucune |
+| **IaC** | Terraform (LocalStack → AWS) | Même code IaC pour LocalStack et AWS (bascule par endpoint/identifiants) : déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle ; cible AWS documentée | Aucune |
 
-### Note — démonstration Spark (optionnelle)
-Polars est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge** — sans faire de Spark le moteur du pipeline.
+### Note : démonstration Spark (optionnelle)
+Polars est le moteur retenu. La **compétence Spark** peut être prouvée via **un notebook Databricks Community** rejouant une transformation « à l'échelle prod », documenté comme **voie de montée en charge**, sans faire de Spark le moteur du pipeline.
 
-### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
+### Note : dimensionnement (anticiper l'objection « sur-ingénierie »)
 Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** se justifierait par un flux haute fréquence (trafic capteur, milliers de mesures/min) mais reste provisionné sans pipeline applicatif réel (§2.3) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
 
-### Note — versions figées (ENF-5, reproductibilité)
+### Note : versions figées (ENF-5, reproductibilité)
 Toutes les dépendances Python sont épinglées en `==` (`pyproject.toml`) et les images Docker en tag précis, jamais `latest` : la reproductibilité est une exigence du CDC (ENF-5). Relever une version impose de rejouer les notebooks pour vérifier que les chiffres publiés tiennent toujours (cf. [notebooks/README.md](../notebooks/README.md)).
 
 ---
@@ -192,18 +192,18 @@ erDiagram
 - `Num_Acc` est renommé **`Accident_Id`** dans le fichier caractéristiques **2022 uniquement**.
 - Les fichiers caractéristiques 2021 et 2022 sont nommés **`carcteristiques`** (sans le « a ») par le producteur lui-même.
 - `jour` / `mois` sont zéro-paddés certaines années (`"05"`) et pas d'autres (`"5"`) → toujours caster en `Int64`.
-- `grav`, `catv`, `catu` contiennent des valeurs `" -1"` → caster avec `strict=False`. **Attention** : la sentinelle est précédée d'une espace (`" -1"`, pas `"-1"`) sur la quasi-totalité des colonnes codées du BAAC (pas seulement ces trois-là : `lum`, `int`, `atm`, `col`, `circ`, `vosp`, `prof`, `plan`, `surf`, `infra`, `situ`, `sexe`, `trajet`, `locp`… constaté). `strict=False` seul ne suffit pas : `" -1".cast(Int8, strict=False)` renvoie `null`, pas `-1` — `str.strip_chars()` est nécessaire avant le cast, sans quoi une valeur explicitement codée « non renseigné » se confond silencieusement avec une valeur réellement absente.
-- Les valeurs manquantes s'écrivent de **trois façons différentes** selon la variable : cellule vide, `0`, ou point `.` (pas seulement `-1`) — cf. [dictionnaire ONISR](#12-références).
-- L'indicateur « blessé hospitalisé » (`grav = 3`, utilisé dans `is_grave`) **n'est plus labellisé par la statistique publique depuis 2019** et n'est pas comparable avant/après 2018 (changement de process de saisie des forces de l'ordre). À garder en tête pour la fiabilité de la cible sur longue période — c'est la raison pour laquelle le périmètre d'entraînement démarre en 2019 (cf. [CDC_GRAVIA.md §6.2](CDC_GRAVIA.md)).
-- La colonne `id_usager` (rubrique usagers) est **absente des fichiers 2019 et 2020**, présente à partir de 2021 seulement (constaté sur les fichiers réels) — cohérent avec l'ajout des usagers en fuite documenté par l'ONISR à partir de cette année. Ne pas supposer sa présence sans vérifier le millésime.
+- `grav`, `catv`, `catu` contiennent des valeurs `" -1"` → caster avec `strict=False`. **Attention** : la sentinelle est précédée d'une espace (`" -1"`, pas `"-1"`) sur la quasi-totalité des colonnes codées du BAAC (pas seulement ces trois-là : `lum`, `int`, `atm`, `col`, `circ`, `vosp`, `prof`, `plan`, `surf`, `infra`, `situ`, `sexe`, `trajet`, `locp`… constaté). `strict=False` seul ne suffit pas : `" -1".cast(Int8, strict=False)` renvoie `null`, pas `-1` ; `str.strip_chars()` est nécessaire avant le cast, sans quoi une valeur explicitement codée « non renseigné » se confond silencieusement avec une valeur réellement absente.
+- Les valeurs manquantes s'écrivent de **trois façons différentes** selon la variable : cellule vide, `0`, ou point `.` (pas seulement `-1`), cf. [dictionnaire ONISR](#12-références).
+- L'indicateur « blessé hospitalisé » (`grav = 3`, utilisé dans `is_grave`) **n'est plus labellisé par la statistique publique depuis 2019** et n'est pas comparable avant/après 2018 (changement de process de saisie des forces de l'ordre). À garder en tête pour la fiabilité de la cible sur longue période : c'est la raison pour laquelle le périmètre d'entraînement démarre en 2019 (cf. [CDC_GRAVIA.md §6.2](CDC_GRAVIA.md)).
+- La colonne `id_usager` (rubrique usagers) est **absente des fichiers 2019 et 2020**, présente à partir de 2021 seulement (constaté sur les fichiers réels), cohérent avec l'ajout des usagers en fuite documenté par l'ONISR à partir de cette année. Ne pas supposer sa présence sans vérifier le millésime.
 - Les noms de colonnes ne respectent pas toujours la casse du dictionnaire ONISR : `an_nais` (rubrique usagers) est en minuscules dans les fichiers réels alors que le PDF l'écrit `An_nais`. Vérifier la casse réelle plutôt que de la recopier du PDF.
 - Chaque fichier BAAC source contient une **ligne finale entièrement vide** (artefact d'export) : `Num_Acc` et toutes les autres colonnes valent `null` après lecture Bronze. Constatée sur 17 des 20 combinaisons table/millésime 2019-2023. Filtrée en Silver (`Num_Acc` non nul), pas en Bronze (fidélité à la source).
-- `hrmn` (caractéristiques) est au format `"HH:MM"` — vérifié empiriquement sur 2019-2023, non documenté par le dictionnaire ONISR.
+- `hrmn` (caractéristiques) est au format `"HH:MM"` (vérifié empiriquement sur 2019-2023, non documenté par le dictionnaire ONISR).
 - Le champ `voie` (lieux) est du **texte libre très bruité** (`"AUTOROUTE A 63"`, `"Echangeur 16.1 (Rd Pt autoroute A1)"`) : toute extraction de numéro de route doit être conservatrice.
-- `nbv` (lieux) contient parfois des **artefacts Excel non résolus** (`"#ERREUR"`, `"#VALEURMULTI"`) — trouvé en auditant le brut (EDA sur Bronze), 55 lignes sur 273 226 (2022 : 1, 2023 : 54). Sans traitement, `cast_columns` (`strict=False`) les transforme en NULL silencieux, indiscernable d'une valeur réellement absente — à traiter comme la sentinelle `-1` (« non renseigné »), déjà utilisée pour cette colonne partout ailleurs (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`).
+- `nbv` (lieux) contient parfois des **artefacts Excel non résolus** (`"#ERREUR"`, `"#VALEURMULTI"`), trouvé en auditant le brut (EDA sur Bronze), 55 lignes sur 273 226 (2022 : 1, 2023 : 54). Sans traitement, `cast_columns` (`strict=False`) les transforme en NULL silencieux, indiscernable d'une valeur réellement absente : à traiter comme la sentinelle `-1` (« non renseigné »), déjà utilisée pour cette colonne partout ailleurs (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`).
 - Un accident a **plusieurs lignes** dans `lieux` → dédoublonner sur `Num_Acc`.
 
-### 4.2 Modèle physique Gold — schéma en étoile
+### 4.2 Modèle physique Gold : schéma en étoile
 
 Grain de la table de faits : **un accident**. La gravité par usager est agrégée en label binaire (`is_grave` = au moins un usager hospitalisé ou tué).
 
@@ -277,7 +277,7 @@ erDiagram
 | Couche | Contenu | Format / stockage | Transformations |
 |---|---|---|---|
 | **Bronze** | Données brutes telles qu'ingérées | Parquet (MinIO/S3) | Aucune (traçabilité de la source) |
-| **Silver** | Nettoyé, typé, **pseudonymisé**, une table par entité BAAC (caractéristiques/lieux/véhicules/usagers) | Parquet (MinIO/S3) | Dédoublonnage, typage strict, gestion des manquants, agrégation géographique (pseudonymisation) — **pas de jointure inter-table** |
+| **Silver** | Nettoyé, typé, **pseudonymisé**, une table par entité BAAC (caractéristiques/lieux/véhicules/usagers) | Parquet (MinIO/S3) | Dédoublonnage, typage strict, gestion des manquants, agrégation géographique (pseudonymisation), **pas de jointure inter-table** |
 | **Gold** | Features model-ready, schéma en étoile, label | PostgreSQL | Jointure des 4 tables Silver (`Num_Acc`, `id_vehicule`), construction faits/dimensions, label `is_grave`, features |
 
 ---
@@ -287,11 +287,11 @@ erDiagram
 ### 6.1 Dev
 - **Docker Compose** : MinIO, PostgreSQL, Airflow, MLflow, Redis, Redpanda, FastAPI, Prometheus, Grafana.
 
-### 6.2 Prod (cible) — ce que le Terraform couvre réellement
+### 6.2 Prod (cible) : ce que le Terraform couvre réellement
 - **LocalStack** : `terraform apply` réel et gratuit du même code IaC qu'AWS (S3, IAM, etc.), émulant fidèlement l'API AWS → prouve l'exécutabilité de l'infrastructure, pas une charge de production réelle (cf. §2.1 pour la portée exacte).
 - **Architecture cible AWS documentée** (schéma cible, pour l'oral) : S3, RDS PostgreSQL, EKS (Kubernetes), MSK (Kafka), ElastiCache, ECR.
-- **Ce que le Terraform (`gravia-mlops/terraform/`) écrit réellement** : VPC/subnets/security groups, S3, Secrets Manager, IAM — plus, sous condition (`var.include_pro_only_services`, jamais activée contre LocalStack Community qui ne les supporte pas) : ECR, EKS, RDS. **MSK et ElastiCache ne sont écrits nulle part**, même conditionnellement — cohérent avec le bus de messages et le cache tous deux **provisionnés en dev mais non alimentés** (§2.3, §3) : il n'y avait pas de sens à écrire l'IaC de deux services dont l'usage applicatif reste à construire.
-- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale via **kind**, mais **seulement pour le serving** (`gravia-mlops/k8s/serving-*.yaml`) — Airflow n'a pas été redéployé sur ce cluster, il ne tourne qu'en Docker Compose (dev).
+- **Ce que le Terraform (`gravia-mlops/terraform/`) écrit réellement** : VPC/subnets/security groups, S3, Secrets Manager, IAM ; plus, sous condition (`var.include_pro_only_services`, jamais activée contre LocalStack Community qui ne les supporte pas) : ECR, EKS, RDS. **MSK et ElastiCache ne sont écrits nulle part**, même conditionnellement : cohérent avec le bus de messages et le cache tous deux **provisionnés en dev mais non alimentés** (§2.3, §3), il n'y avait pas de sens à écrire l'IaC de deux services dont l'usage applicatif reste à construire.
+- **Kubernetes / EKS** : couche de scaling et d'orchestration de conteneurs pour la haute disponibilité. Démonstration locale via **kind**, mais **seulement pour le serving** (`gravia-mlops/k8s/serving-*.yaml`) ; Airflow n'a pas été redéployé sur ce cluster, il ne tourne qu'en Docker Compose (dev).
 
 ```mermaid
 flowchart TB
@@ -318,15 +318,15 @@ Le Terraform et les workflows de déploiement décrits ci-dessus résident dans 
 
 ## 7. Sécurité et conformité (lien Bloc 1)
 
-Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernance §7 et AIPD §5 :
+Mesures **cibles** : statut réel de mise en œuvre détaillé dans Gouvernance §7 et AIPD §5 :
 
 | Aspect | Mesure | Statut |
 |---|---|---|
-| Chiffrement | Au repos (S3/RDS) et en transit (TLS) | À implémenter — pas de cloud réel déployé |
-| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) | **Fait** — `lat`/`long`/`adr` (caractéristiques) et `voie`/`v1`/`v2`/`pr`/`pr1` (lieux) supprimées |
+| Chiffrement | Au repos (S3/RDS) et en transit (TLS) | À implémenter (pas de cloud réel déployé) |
+| Pseudonymisation | Dès la couche Silver (cf. risque de ré-identification) | **Fait** : `lat`/`long`/`adr` (caractéristiques) et `voie`/`v1`/`v2`/`pr`/`pr1` (lieux) supprimées |
 | Gestion des accès | Moindre privilège (IAM / rôles PostgreSQL) | À implémenter |
 | Secrets | Variables d'environnement `.env` (dev) / Secrets Manager (cible) | **Fait** en dev (`.env` gitignoré) |
-| Traçabilité | Lineage des transformations, journalisation des prédictions | **Partiel** — prédictions journalisées en logs, pas de registre interrogeable 12 mois |
+| Traçabilité | Lineage des transformations, journalisation des prédictions | **Partiel** : prédictions journalisées en logs, pas de registre interrogeable 12 mois |
 | Données de santé | AIPD obligatoire, minimisation, durées de conservation | **Fait** (AIPD rédigée, minimisation en Silver) |
 
 ---
@@ -336,7 +336,7 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 | Critère | Réponse |
 |---|---|
 | Montée en charge données | Polars en mémoire ; partitionnement Parquet par millésime |
-| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes — réplication fixe vérifiée (`replicas: 2`, `gravia-mlops/k8s/serving-deployment.yaml`) ; `HorizontalPodAutoscaler` non implémenté à ce jour |
+| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes, réplication fixe vérifiée (`replicas: 2`, `gravia-mlops/k8s/serving-deployment.yaml`) ; `HorizontalPodAutoscaler` non implémenté à ce jour |
 | Performance requêtes | Index PostgreSQL sur clés du schéma étoile |
 | Tolérance aux pannes | Redondance S3/RDS (cible), retries Airflow, redémarrage automatique des pods |
 | Reproductibilité | Versioning code (Git) + données (millésimes) + modèles (MLflow) |
@@ -345,10 +345,10 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 
 ## 9. Surveillance de l'infrastructure
 
-- **Prometheus** : instrumentation de l'API (`prometheus-fastapi-instrumentator`, endpoint `/metrics`) — latence, débit, taux d'erreur.
-- **Grafana** : tableau de bord provisionné (6 panels : p50/p95 vs seuil CDC ENF-1 300 ms, p95 actuel `/v1/predict-severity`, débit par endpoint, taux d'erreur, total requêtes, disponibilité de la cible), vérifié sur trafic réel (p95 ≈ 95 ms mesuré). **Pas d'alerte configurée à ce jour** — les seuils sont visibles sur le dashboard, pas encore câblés à une notification automatique.
+- **Prometheus** : instrumentation de l'API (`prometheus-fastapi-instrumentator`, endpoint `/metrics`) : latence, débit, taux d'erreur.
+- **Grafana** : tableau de bord provisionné (6 panels : p50/p95 vs seuil CDC ENF-1 300 ms, p95 actuel `/v1/predict-severity`, débit par endpoint, taux d'erreur, total requêtes, disponibilité de la cible), vérifié sur trafic réel (p95 ≈ 95 ms mesuré). **Pas d'alerte configurée à ce jour** : les seuils sont visibles sur le dashboard, pas encore câblés à une notification automatique.
 - **Great Expectations** : qualité des données à chaque exécution de pipeline.
-- **Evidently** : dérive des données et du modèle (`ml/monitoring/drift.py`, lancé à la main). Déclencheur visé, pas encore câblé : cf. CDC EF-6 — le réentraînement réel reste manuel/calendaire (`workflow_dispatch` + trimestriel), pas déclenché automatiquement par une dérive détectée.
+- **Evidently** : dérive des données et du modèle (`ml/monitoring/drift.py`, lancé à la main). Déclencheur visé, pas encore câblé : cf. CDC EF-6 ; le réentraînement réel reste manuel/calendaire (`workflow_dispatch` + trimestriel), pas déclenché automatiquement par une dérive détectée.
 
 ---
 
@@ -364,32 +364,32 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 
 1. **Polars plutôt que Spark** : volume en mémoire → éviter la sur-ingénierie ; Spark gardé comme voie de montée en charge.
 2. **Hybride lac + PostgreSQL** : Medallion pour le narratif + schéma en étoile relationnel pour la modélisation attendue.
-3. **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants uniquement), déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure — sans simuler une charge de production réelle, hors de portée sans budget cloud payant.
+3. **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants uniquement), déploiement réel et gratuit qui prouve l'exécutabilité de l'infrastructure, sans simuler une charge de production réelle, hors de portée sans budget cloud payant.
 4. **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
 5. **Anti-leakage strict** : features limitées aux informations connues au signalement.
-6. **Trafic testé comme feature du modèle de gravité et écarté** (gain prédictif nul, exploré en batch uniquement) : sa valeur opérationnelle propre (aide au routage des secours) justifierait en théorie une ingestion temps réel indépendante du modèle IA, mais ce pipeline temps réel n'a pas été implémenté dans le périmètre de ce projet — choix de périmètre assumé et documenté (§2.3).
+6. **Trafic testé comme feature du modèle de gravité et écarté** (gain prédictif nul, exploré en batch uniquement) : sa valeur opérationnelle propre (aide au routage des secours) justifierait en théorie une ingestion temps réel indépendante du modèle IA, mais ce pipeline temps réel n'a pas été implémenté dans le périmètre de ce projet (choix de périmètre assumé et documenté, §2.3).
 
 ---
 
 ## 12. Références
 
 - [Cahier des charges GRAVIA](CDC_GRAVIA.md)
-- Référentiel RNCP — Bloc 2
-- LocalStack — https://www.localstack.cloud/
-- Polars — https://pola.rs/
-- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) — dictionnaire officiel des 4 tables et de leurs variables/codes
+- Référentiel RNCP, Bloc 2
+- LocalStack : https://www.localstack.cloud/
+- Polars : https://pola.rs/
+- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) : dictionnaire officiel des 4 tables et de leurs variables/codes
 
 ---
 
-## Annexe — Correspondance avec le référentiel (Bloc 2)
+## Annexe : Correspondance avec le référentiel (Bloc 2)
 
 | Compétence | Couverture dans ce document |
 |---|---|
-| C2.1 — Évaluation des besoins et contraintes | §1 |
-| C2.2 — Cahier des charges d'architecture | Ce document (+ CDC) |
-| C2.3 — Modèles logiques et physiques | §4 (MCD, schéma en étoile) |
-| C2.4 — Structures de bases de données | §4, §5 |
-| C2.5 — Serveurs cloud / on-premise | §2, §6 |
-| C2.6 — Clusters de calcul et scaling | §6 (Kubernetes / EKS) |
-| C2.7 — Surveillance de l'infrastructure | §9 |
-| C2.8 — Documentation accessible | §10 |
+| C2.1 : Évaluation des besoins et contraintes | §1 |
+| C2.2 : Cahier des charges d'architecture | Ce document (+ CDC) |
+| C2.3 : Modèles logiques et physiques | §4 (MCD, schéma en étoile) |
+| C2.4 : Structures de bases de données | §4, §5 |
+| C2.5 : Serveurs cloud / on-premise | §2, §6 |
+| C2.6 : Clusters de calcul et scaling | §6 (Kubernetes / EKS) |
+| C2.7 : Surveillance de l'infrastructure | §9 |
+| C2.8 : Documentation accessible | §10 |

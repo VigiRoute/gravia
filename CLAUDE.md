@@ -1,27 +1,27 @@
-# CLAUDE.md — GRAVIA
+# CLAUDE.md : GRAVIA
 
 ## Contexte du projet
 
 GRAVIA est un système MLOps d'**aide à la décision pour la priorisation des secours routiers** : à la remontée d'un signalement d'accident, le système prédit la **gravité probable** afin d'aider les opérateurs à prioriser et dimensionner les moyens. Projet développé pour l'organisation fictive **VigiRoute**, dans le cadre du titre RNCP **Architecte en Intelligence Artificielle**.
 
-- **Dataset source :** [BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/) — Bases de données annuelles des accidents corporels de la circulation (2005→2024). **Seule source réellement utilisée par le modèle à ce jour.**
-- **Enrichissements — statuts à connaître avant d'en reproposer un :**
+- **Dataset source :** [BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/) : Bases de données annuelles des accidents corporels de la circulation (2005→2024). **Seule source réellement utilisée par le modèle à ce jour.**
+- **Enrichissements, statuts à connaître avant d'en reproposer un :**
   - **Trafic** (DATEX II national + capteurs Paris) : exploré, testé en modèle, **écarté comme feature** (signal statistique réel mais gain prédictif nul). Le flux temps réel reste **ingéré** pour une valeur opérationnelle propre (routage des secours), pas pour le modèle.
   - **Bulletins d'incidents (texte)** : **retirés du périmètre**, aucune source réelle n'existe. Ne pas les réintroduire.
   - **Météo (Open-Meteo)** et **géo (BAN/OSM)** : déclarés dans le CDC, **jamais implémentés ni testés** à ce jour. Le BAAC contient déjà la météo (`atm`) et les caractéristiques de route (`catr`, `vma`, `nbv`).
-- **Tâche IA :** Classification **binaire** tabulaire — `grave` / `non grave`
+- **Tâche IA :** Classification **binaire** tabulaire : `grave` / `non grave`
 - **Cible :** `grave` = au moins une victime hospitalisée ou tuée (agrégée au niveau accident)
 - **Architecture :** Medallion Bronze / Silver / Gold + MLOps complet
 
-> ⚠️ **Pas de GPU dans ce projet.** La tâche est une classification tabulaire (benchmark de modèles — gradient boosting anticipé favori) — l'entraînement tourne en CPU. Ne pas générer de code CUDA/ROCm.
+> ⚠️ **Pas de GPU dans ce projet.** La tâche est une classification tabulaire (benchmark de modèles, gradient boosting anticipé favori). L'entraînement tourne en CPU. Ne pas générer de code CUDA/ROCm.
 
 ---
 
-## ⚠️ Deux environnements — règle fondamentale
+## ⚠️ Deux environnements : règle fondamentale
 
 Toujours préciser l'environnement (dev/prod) avant de générer du code ou de la config.
 
-### 🧪 Dev — local, gratuit
+### 🧪 Dev (local, gratuit)
 
 | Composant | Technologie dev |
 |---|---|
@@ -39,7 +39,7 @@ Toujours préciser l'environnement (dev/prod) avant de générer du code ou de l
 | IaC | **Terraform** via **LocalStack** |
 | CI/CD | **GitHub Actions** |
 
-### 🚀 Prod — cible cloud (documentée + IaC)
+### 🚀 Prod (cible cloud, documentée + IaC)
 
 | Composant | Technologie prod |
 |---|---|
@@ -59,7 +59,7 @@ Toujours préciser l'environnement (dev/prod) avant de générer du code ou de l
 
 ## Choix techniques structurants (à savoir défendre)
 
-- **Polars, pas Spark** : le volume BAAC tient en mémoire (< 10 Go) → Spark serait de la sur-ingénierie. Spark reste la voie de montée en charge documentée. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais importé nulle part dans le code — tout le traitement passe par Polars et SQL PostgreSQL.
+- **Polars, pas Spark** : le volume BAAC tient en mémoire (< 10 Go) → Spark serait de la sur-ingénierie. Spark reste la voie de montée en charge documentée. `duckdb` a été retiré des dépendances (`pyproject.toml`) : envisagé au cadrage, jamais importé nulle part dans le code ; tout le traitement passe par Polars et SQL PostgreSQL.
 - **Hybride lac + relationnel** : Parquet (Bronze/Silver) + PostgreSQL schéma en étoile (Gold).
 - **LocalStack pour Terraform** : même code IaC que la cible AWS (bascule par endpoint/identifiants). Prouve que l'infrastructure est exécutable, **pas** une charge de production réelle.
 - **Kubernetes en cible, pas en dev** : scaling et haute disponibilité en production, sans alourdir le développement.
@@ -79,7 +79,7 @@ Le projet est réparti sur l'organisation GitHub **VigiRoute**, en deux dépôts
 
 Règle : `gravia` **construit** la solution, `gravia-mlops` la **déploie**.
 
-## Structure du dépôt — gravia (ce dépôt)
+## Structure du dépôt : gravia (ce dépôt)
 
 ```
 gravia/
@@ -102,7 +102,7 @@ gravia/
 └── .github/workflows/       # CI de la solution (tests, lint, build)
 ```
 
-## Structure du dépôt — gravia-mlops
+## Structure du dépôt : gravia-mlops
 
 ```
 gravia-mlops/
@@ -117,7 +117,7 @@ gravia-mlops/
 
 ### Python
 - Version : **Python 3.12** (seule version testée ; dépendances figées dans `pyproject.toml`)
-- Style : **PEP 8** — linting `ruff`, formatage `black`
+- Style : **PEP 8** (linting `ruff`, formatage `black`)
 - Type hints : **obligatoires** sur toutes les fonctions publiques
 - Docstrings : format **Google style**
 - Gestion des erreurs : exceptions explicites, jamais de `except Exception` silencieux
@@ -143,7 +143,7 @@ Le modèle ne doit utiliser **que les variables connues au moment du signalement
 - **Label accident** : `is_grave = 1` si au moins un usager a `grav ∈ {2, 3}` (tué ou hospitalisé), sinon `0`.
 
 ### ⚠️ Angle mort de sécurité du seuil unique (CRITIQUE)
-Un seuil de décision **unique** calibré sur la distribution nationale donne un recall de **0,007 sur Paris** alors que le recall national est de 0,808 — le système raterait 99 % des accidents graves d'une zone entière tout en paraissant conforme. Cause : le taux de gravité de base varie fortement (~9 % à Paris contre ~36 % au national), donc le modèle y prédit des probabilités systématiquement plus basses.
+Un seuil de décision **unique** calibré sur la distribution nationale donne un recall de **0,007 sur Paris** alors que le recall national est de 0,808. Le système raterait 99 % des accidents graves d'une zone entière tout en paraissant conforme. Cause : le taux de gravité de base varie fortement (~9 % à Paris contre ~36 % au national), donc le modèle y prédit des probabilités systématiquement plus basses.
 
 **Conséquence de méthode : ne jamais valider ce modèle sur sa seule métrique agrégée nationale.** Toujours vérifier le recall **par sous-groupe** (département, urbain/rural).
 
@@ -169,13 +169,13 @@ périmètre d'entraînement 2019-2023, cf. CDC_GRAVIA.md §6.2).
 ## Seuils et métriques
 
 Source de vérité : [CDC_GRAVIA.md §11](docs/CDC_GRAVIA.md) (table complète avec justification et
-action si non atteint) et §13.7 (référence baseline à battre — recall 0,808 / F1 macro 0,708,
+action si non atteint) et §13.7 (référence baseline à battre : recall 0,808 / F1 macro 0,708,
 BAAC seul sans enrichissement, train 2019-2021 / seuil calibré sur validation 2022 / test holdout
 2023, reproductible via `notebooks/eda_baseline_baac.ipynb`). Toute nouvelle feature doit être
-comparée à ce baseline **sur ce même protocole** pour juger de son apport réel — c'est ainsi que
+comparée à ce baseline **sur ce même protocole** pour juger de son apport réel ; c'est ainsi que
 le trafic a été écarté.
 
-> Les seuils sont atteints au niveau agrégé national — mais voir l'**angle mort du seuil unique** ci-dessus avant de considérer le modèle comme validé.
+> Les seuils sont atteints au niveau agrégé national, mais voir l'**angle mort du seuil unique** ci-dessus avant de considérer le modèle comme validé.
 
 ---
 
@@ -203,12 +203,12 @@ make validate-data    # Great Expectations
 
 ✅ **Toute nouvelle branche créée doit être immédiatement poussée sur `origin`** (`git push -u origin <branche>` dès la création, pas seulement au moment d'ouvrir la PR), pour qu'elle soit visible sur GitHub sans étape manuelle supplémentaire.
 
-## Environnement de développement — pièges connus
+## Environnement de développement : pièges connus
 
 - **Console Windows en cp1252** : tout script qui affiche des caractères non-ASCII (tableaux Polars, emojis MLflow) plante avec `UnicodeEncodeError`. Ajouter `sys.stdout.reconfigure(encoding="utf-8")` en tête de script, ou lancer avec `PYTHONIOENCODING=utf-8`.
 - **Fins de ligne** : `.gitattributes` force LF sur les scripts, YAML et Dockerfile. Un `.sh` en CRLF monté dans un conteneur Linux échoue avec `bad interpreter`.
 - **Projet Docker Compose nommé `gravia`** (directive `name:`) : sans lui, Compose déduirait le nom du dossier (`infra`), générique au point d'entrer en collision avec les volumes d'autres projets.
-- **Versions de la stack** : **Airflow 3.x** (l'API des DAGs diffère de la 2.x, `api-server` remplace `webserver`) et **Great Expectations 1.x** (réécriture complète de l'API par rapport à 0.18 — le matériel 0.18 est inapplicable).
+- **Versions de la stack** : **Airflow 3.x** (l'API des DAGs diffère de la 2.x, `api-server` remplace `webserver`) et **Great Expectations 1.x** (réécriture complète de l'API par rapport à 0.18 ; le matériel 0.18 est inapplicable).
 - **Archives trafic Paris** compressées en **Deflate64** : le module `zipfile` de Python ne sait pas les lire, extraire avec `unzip` (Info-ZIP).
 
 ---
@@ -221,11 +221,11 @@ Ne jamais committer de secrets. En dev, utiliser `.env` (ignoré par `.gitignore
 
 ## Documentation de référence
 
-- [Avancement du projet](docs/AVANCEMENT_GRAVIA.md) — **à consulter en premier** pour reprendre le contexte dans un nouveau chat (où on en est, ce qui est fait/pas fait, prochaine étape)
+- [Avancement du projet](docs/AVANCEMENT_GRAVIA.md) : **à consulter en premier** pour reprendre le contexte dans un nouveau chat (où on en est, ce qui est fait/pas fait, prochaine étape)
 - [Cahier des charges](docs/CDC_GRAVIA.md)
 - [Architecture de données](docs/Architecture_GRAVIA.md)
 - [Plan de gouvernance](docs/Gouvernance_GRAVIA.md)
 - [AIPD](docs/AIPD_GRAVIA.md)
 - [Référentiel RNCP](docs/referentiel.md)
 - [Dataset BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/)
-- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) — dictionnaire officiel des 4 tables et de leurs variables/codes, source de vérité pour tout choix de typage en Silver/Gold (à consulter avant de deviner un code)
+- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) : dictionnaire officiel des 4 tables et de leurs variables/codes, source de vérité pour tout choix de typage en Silver/Gold (à consulter avant de deviner un code)

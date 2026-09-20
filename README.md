@@ -1,6 +1,6 @@
 # GRAVIA
 
-**Aide à la décision pour la priorisation des secours routiers** — prédiction de la gravité probable d'un accident à partir des informations connues au moment de son signalement.
+**Aide à la décision pour la priorisation des secours routiers** : prédiction de la gravité probable d'un accident à partir des informations connues au moment de son signalement.
 
 Projet MLOps réalisé dans le cadre du titre RNCP **Architecte en Intelligence Artificielle**.
 
@@ -9,7 +9,7 @@ Projet MLOps réalisé dans le cadre du titre RNCP **Architecte en Intelligence 
 | | |
 |---|---|
 | **Tâche IA** | Classification binaire tabulaire (`grave` / `non grave`) |
-| **Donnée** | [BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/) — accidents corporels 2005→2024 |
+| **Donnée** | [BAAC](https://www.data.gouv.fr/fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024/) : accidents corporels 2005→2024 |
 | **Cible** | `grave` = au moins une victime hospitalisée ou tuée |
 | **Architecture** | Medallion Bronze / Silver / Gold + MLOps |
 | **Stack dev** | MinIO · PostgreSQL · Polars/DuckDB · Airflow · MLflow · FastAPI · Docker |
@@ -19,8 +19,8 @@ Projet MLOps réalisé dans le cadre du titre RNCP **Architecte en Intelligence 
 
 Projet réparti sur l'organisation **VigiRoute**, en deux dépôts (exigence de certification) :
 
-- **[VigiRoute/gravia](https://github.com/VigiRoute/gravia)** *(ce dépôt)* — la solution IA : code, pipelines de données, docs, stack dev.
-- **[VigiRoute/gravia-mlops](https://github.com/VigiRoute/gravia-mlops)** — CI/CD et déploiement : IaC Terraform, Kubernetes, workflows de déploiement.
+- **[VigiRoute/gravia](https://github.com/VigiRoute/gravia)** *(ce dépôt)*, la solution IA : code, pipelines de données, docs, stack dev.
+- **[VigiRoute/gravia-mlops](https://github.com/VigiRoute/gravia-mlops)**, CI/CD et déploiement : IaC Terraform, Kubernetes, workflows de déploiement.
 
 ## Documentation
 
