@@ -135,6 +135,9 @@ Polars est le moteur retenu. La **compétence Spark** peut être prouvée via **
 ### Note — dimensionnement (anticiper l'objection « sur-ingénierie »)
 Trois cas distincts : le rejet de **Spark** relève du *dimensionnement du traitement* (volume en mémoire) ; **Kafka** se justifierait par un flux haute fréquence (trafic capteur, milliers de mesures/min) mais reste provisionné sans pipeline applicatif réel (§2.3) ; seul **Kubernetes** dépasse la charge actuelle, retenu pour le **scaling et la haute disponibilité** du service en production.
 
+### Note — versions figées (ENF-5, reproductibilité)
+Toutes les dépendances Python sont épinglées en `==` (`pyproject.toml`) et les images Docker en tag précis, jamais `latest` : la reproductibilité est une exigence du CDC (ENF-5). Relever une version impose de rejouer les notebooks pour vérifier que les chiffres publiés tiennent toujours (cf. [notebooks/README.md](../notebooks/README.md)).
+
 ---
 
 ## 4. Modélisation des données
@@ -183,6 +186,22 @@ erDiagram
         int an_nais "année naissance"
     }
 ```
+
+#### Pièges de schéma BAAC (constatés, à gérer dans tout code d'ingestion)
+
+- `Num_Acc` est renommé **`Accident_Id`** dans le fichier caractéristiques **2022 uniquement**.
+- Les fichiers caractéristiques 2021 et 2022 sont nommés **`carcteristiques`** (sans le « a ») par le producteur lui-même.
+- `jour` / `mois` sont zéro-paddés certaines années (`"05"`) et pas d'autres (`"5"`) → toujours caster en `Int64`.
+- `grav`, `catv`, `catu` contiennent des valeurs `" -1"` → caster avec `strict=False`. **Attention** : la sentinelle est précédée d'une espace (`" -1"`, pas `"-1"`) sur la quasi-totalité des colonnes codées du BAAC (pas seulement ces trois-là : `lum`, `int`, `atm`, `col`, `circ`, `vosp`, `prof`, `plan`, `surf`, `infra`, `situ`, `sexe`, `trajet`, `locp`… constaté). `strict=False` seul ne suffit pas : `" -1".cast(Int8, strict=False)` renvoie `null`, pas `-1` — `str.strip_chars()` est nécessaire avant le cast, sans quoi une valeur explicitement codée « non renseigné » se confond silencieusement avec une valeur réellement absente.
+- Les valeurs manquantes s'écrivent de **trois façons différentes** selon la variable : cellule vide, `0`, ou point `.` (pas seulement `-1`) — cf. [dictionnaire ONISR](#12-références).
+- L'indicateur « blessé hospitalisé » (`grav = 3`, utilisé dans `is_grave`) **n'est plus labellisé par la statistique publique depuis 2019** et n'est pas comparable avant/après 2018 (changement de process de saisie des forces de l'ordre). À garder en tête pour la fiabilité de la cible sur longue période — c'est la raison pour laquelle le périmètre d'entraînement démarre en 2019 (cf. [CDC_GRAVIA.md §6.2](CDC_GRAVIA.md)).
+- La colonne `id_usager` (rubrique usagers) est **absente des fichiers 2019 et 2020**, présente à partir de 2021 seulement (constaté sur les fichiers réels) — cohérent avec l'ajout des usagers en fuite documenté par l'ONISR à partir de cette année. Ne pas supposer sa présence sans vérifier le millésime.
+- Les noms de colonnes ne respectent pas toujours la casse du dictionnaire ONISR : `an_nais` (rubrique usagers) est en minuscules dans les fichiers réels alors que le PDF l'écrit `An_nais`. Vérifier la casse réelle plutôt que de la recopier du PDF.
+- Chaque fichier BAAC source contient une **ligne finale entièrement vide** (artefact d'export) : `Num_Acc` et toutes les autres colonnes valent `null` après lecture Bronze. Constatée sur 17 des 20 combinaisons table/millésime 2019-2023. Filtrée en Silver (`Num_Acc` non nul), pas en Bronze (fidélité à la source).
+- `hrmn` (caractéristiques) est au format `"HH:MM"` — vérifié empiriquement sur 2019-2023, non documenté par le dictionnaire ONISR.
+- Le champ `voie` (lieux) est du **texte libre très bruité** (`"AUTOROUTE A 63"`, `"Echangeur 16.1 (Rd Pt autoroute A1)"`) : toute extraction de numéro de route doit être conservatrice.
+- `nbv` (lieux) contient parfois des **artefacts Excel non résolus** (`"#ERREUR"`, `"#VALEURMULTI"`) — trouvé en auditant le brut (EDA sur Bronze), 55 lignes sur 273 226 (2022 : 1, 2023 : 54). Sans traitement, `cast_columns` (`strict=False`) les transforme en NULL silencieux, indiscernable d'une valeur réellement absente — à traiter comme la sentinelle `-1` (« non renseigné »), déjà utilisée pour cette colonne partout ailleurs (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`).
+- Un accident a **plusieurs lignes** dans `lieux` → dédoublonner sur `Num_Acc`.
 
 ### 4.2 Modèle physique Gold — schéma en étoile
 
@@ -358,6 +377,7 @@ Mesures **cibles** — statut réel de mise en œuvre détaillé dans Gouvernanc
 - Référentiel RNCP — Bloc 2
 - LocalStack — https://www.localstack.cloud/
 - Polars — https://pola.rs/
+- [Description des bases de données BAAC (ONISR)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf) — dictionnaire officiel des 4 tables et de leurs variables/codes
 
 ---
 

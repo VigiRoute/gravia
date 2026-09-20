@@ -7,7 +7,7 @@ pas été ajouté à côté de LightGBM : le document cite les deux comme une al
 deux modèles à tester en plus l'un de l'autre, et LightGBM est déjà la dépendance figée du projet,
 déjà validée dans les notebooks (cf. [notebooks/README.md](../notebooks/README.md)).
 
-Protocole identique à la référence déjà publiée (cf. CLAUDE.md, référence baseline) : train
+Protocole identique à la référence déjà publiée (cf. [CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)) : train
 2019-2021, seuil de décision calibré sur validation 2022 (cible recall ≥ 0,80), évalué sur le
 holdout 2023 — jamais vu, y compris pour le calibrage. Features : configuration `"baseline"`
 (cf. `ml/features/gold_features.py`), 273 226 accidents.
@@ -24,7 +24,7 @@ holdout 2023 — jamais vu, y compris pour le calibrage. Features : configuratio
 registry MLflow (`gravia-severity-classifier` v1 — les stages Staging/Production sont dépréciés
 depuis MLflow 2.9, remplacés par les alias). Les deux autres restent trackés dans MLflow
 (comparaison reproductible) mais ne sont pas enregistrés : promotion bloquée sous les seuils CDC
-(cf. CLAUDE.md, seuils et métriques). **v1 n'est plus le modèle `@staging`** depuis la promotion
+(cf. [CDC_GRAVIA.md §11](CDC_GRAVIA.md)). **v1 n'est plus le modèle `@staging`** depuis la promotion
 du LightGBM enriched (v2, cf. section suivante) — reste dans le registry comme historique/point de
 comparaison, rechargeable explicitement via `models:/gravia-severity-classifier/1`.
 

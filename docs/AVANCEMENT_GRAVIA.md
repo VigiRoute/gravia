@@ -63,10 +63,11 @@ CDC sur les deux dépôts.
   **indépendamment, sans jointure inter-table**. Gold fait la jointure (`Num_Acc`, `id_vehicule`)
   et construit `is_grave` + le schéma en étoile. Doc mise à jour en conséquence
   ([Architecture_GRAVIA.md §5](Architecture_GRAVIA.md)) ; la mention d'enrichissement météo/géo en
-  Silver a été retirée de ce tableau (jamais implémenté, cf. CLAUDE.md).
+  Silver a été retirée de ce tableau (jamais implémenté, cf. [CDC_GRAVIA.md §6.1](CDC_GRAVIA.md)).
 - **Dictionnaire officiel BAAC identifié** — [Description des bases de données annuelles
   (ONISR, 21/10/2025)](https://www.onisr.securite-routiere.gouv.fr/sites/default/files/2025-10/Description%20des%20bases%20de%20donn%C3%A9es%20annuelles.pdf),
-  référencé dans CLAUDE.md, à vérifier systématiquement pour tout choix de typage Silver/Gold.
+  à vérifier systématiquement pour tout choix de typage Silver/Gold (cf.
+  [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md)).
   Deux points à retenir : valeurs manquantes sur 3 formats (vide/`0`/`.`, pas seulement `-1`) ;
   l'indicateur « blessé hospitalisé » (`grav=3`, utilisé dans `is_grave`) n'est plus labellisé
   par la statistique publique depuis 2019 et non comparable avant/après 2018.
@@ -91,14 +92,14 @@ CDC sur les deux dépôts.
   enrichissement neuf (jours fériés France métropolitaine, `dateutil.easter`, dépendance figée
   ajoutée), non validé en amont contrairement au reste. Chargé et vérifié sur les 5 millésimes
   réels dans le PostgreSQL du Docker Compose dev : **273 226 accidents** (identique au chiffre du
-  protocole baseline CLAUDE.md), taux `is_grave` **35,76 % national pondéré sur 2019-2023**
+  protocole baseline [CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)), taux `is_grave` **35,76 % national pondéré sur 2019-2023**
   (34,60 % à 36,09 % selon le millésime — cohérent avec le ~36 % déjà documenté ; la valeur
   36,09 % citée dans une version précédente de ce fichier était en réalité le taux 2023 seul, pas
   la moyenne pondérée des 5 ans), zéro clé étrangère orpheline, rechargement testé idempotent.
   **Bug trouvé et corrigé en testant Gold** : chaque fichier BAAC source contient une ligne
   finale entièrement vide (artefact d'export) que Silver ne filtrait pas encore — corrigé dans
   `silver.py` (`Num_Acc` non nul), Silver régénéré, Bronze inchangé (fidélité à la source).
-  Documenté dans CLAUDE.md, pièges de schéma BAAC.
+  Documenté dans [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md), pièges de schéma BAAC.
   **Écart structurel trouvé en préparant `ml/features`, corrigé** : `gold_dim_lieu` ne portait
   que 4 attributs (`departement`/`agglomeration`/`categorie_route`/`vitesse_max`) — 8 attributs
   utilisés par le baseline déjà validé manquaient (`circ`, `nbv`, `vosp`, `prof`, `plan`, `infra`,
@@ -112,8 +113,8 @@ CDC sur les deux dépôts.
   lieux.circ`) — coupait en plein milieu d'une instruction. Corrigé pour découper sur `;` suivi
   d'une fin de ligne, seul un vrai terminateur d'instruction dans ce fichier.
 - **Suite de tests** (`tests/unit/test_bronze.py`, `test_silver.py`, `test_gold.py`,
-  `tests/integration/test_gold_postgres.py`) — 26 tests, **90 % de couverture** (seuil CLAUDE.md :
-  80 %). Les tests unitaires n'ont besoin d'aucune infra (fichiers temporaires uniquement) ; le
+  `tests/integration/test_gold_postgres.py`) — 26 tests, **90 % de couverture** (seuil
+  [CDC_GRAVIA.md §11](CDC_GRAVIA.md), ENF-6 : 80 %). Les tests unitaires n'ont besoin d'aucune infra (fichiers temporaires uniquement) ; le
   test d'intégration Gold est ignoré (`pytest.skip`) si PostgreSQL n'est pas joignable, et nettoie
   ses propres données de test (millésime factice 1900) pour ne pas polluer la base dev partagée.
   **Bug trouvé en écrivant les tests, corrigé** : `cast_columns` castait `" -1"` (sentinelle BAAC
@@ -122,7 +123,7 @@ CDC sur les deux dépôts.
   Silver et Gold régénérés après correction ; les totaux `is_grave` sont restés identiques (la
   distinction -1/null n'affectait pas ce calcul précis), mais la distinction « valeur explicitement
   codée non-renseigné » vs « valeur réellement absente » est désormais correcte pour tout usage
-  futur (Great Expectations, ml/features). Documenté dans CLAUDE.md.
+  futur (Great Expectations, ml/features). Documenté dans [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md).
 - **Orchestration Airflow** ([pipelines/airflow/dags/etl_medallion_dag.py](../pipelines/airflow/dags/etl_medallion_dag.py))
   — un groupe de tâches par millésime (`bronze` → `silver` → `gold`), TaskFlow API Airflow 3
   (`airflow.sdk`), déclenchement manuel (`schedule=None`, millésimes publiés annuellement).
@@ -184,7 +185,7 @@ CDC sur les deux dépôts.
     REST générique.
   30 tests unitaires + 10 tests d'intégration (dont un contre MLflow réel sur données
   synthétiques, ~12s, isolé du registry réel via des noms de test supprimés en sortie) : 82 % de
-  couverture globale (seuil CLAUDE.md : 80 %).
+  couverture globale (seuil [CDC_GRAVIA.md §11](CDC_GRAVIA.md), ENF-6 : 80 %).
   **Config `enriched` testée aussi** (2026-08-27, cf. [ml_training_results.md](ml_training_results.md)) :
   cette fois les **3 modèles** franchissent les seuils CDC ; LightGBM enriched (F1 macro 0,727)
   bat le LightGBM baseline (0,707), reproduit la config C de
@@ -406,7 +407,7 @@ CDC sur les deux dépôts.
 - **Fix `gravia-mlops` CD — image K8s déployée par tag mutable `:latest`**
   (`gravia-mlops/.github/workflows/deploy.yml`) — trouvé au même audit : `k8s-deploy` déployait
   `ghcr.io/vigiroute/gravia-serving:latest` tel quel, en contradiction directe avec la règle du
-  projet (« images Docker en tag précis, jamais `latest` », cf. CLAUDE.md) — alors que `gravia`
+  projet (« images Docker en tag précis, jamais `latest` », cf. [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md)) — alors que `gravia`
   publie déjà un tag immuable (`:${{ github.sha }}`). **Première approche testée et rejetée** :
   déployer directement par référence `repo@sha256:...` — `kind load docker-image` sur une
   référence par digest n'est pas reconnue par le kubelet comme « déjà présente »
@@ -421,13 +422,14 @@ CDC sur les deux dépôts.
 - **Étendre le nombre de millésimes d'entraînement.** 2024 est publié sur data.gouv.fr (mêmes
   noms de fichiers que 2023, déjà gérés par `bronze.py`), donc faisable techniquement. Mais avant
   de s'y lancer, à trancher : (1) **combien d'années** utiliser pour le train sans dégrader la
-  pertinence du signal (le BAAC change de convention chaque année — cf. CLAUDE.md, pièges de
-  schéma — donc « plus » n'est pas gratuit : chaque nouveau millésime ajouté doit être vérifié
-  comme les précédents) ; (2) **si c'est réellement utile** — le baseline atteint déjà les deux
-  seuils CDC avec 5 ans (273 226 accidents), donc établir d'abord si le facteur limitant actuel
-  est la quantité de données ou autre chose (features, angle mort du seuil unique) avant d'investir
-  dans l'ingestion. Décalé au train (2019-2022) ou ajouté au holdout changerait aussi le protocole
-  de référence déjà cité partout (CLAUDE.md, ce fichier, `ml_training_results.md`) — à documenter
+  pertinence du signal (le BAAC change de convention chaque année — cf.
+  [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md), pièges de schéma — donc « plus » n'est
+  pas gratuit : chaque nouveau millésime ajouté doit être vérifié comme les précédents) ; (2) **si
+  c'est réellement utile** — le baseline atteint déjà les deux seuils CDC avec 5 ans (273 226
+  accidents), donc établir d'abord si le facteur limitant actuel est la quantité de données ou
+  autre chose (features, angle mort du seuil unique) avant d'investir dans l'ingestion. Décalé au
+  train (2019-2022) ou ajouté au holdout changerait aussi le protocole de référence déjà cité
+  partout ([CDC_GRAVIA.md §13.7](CDC_GRAVIA.md), ce fichier, `ml_training_results.md`) — à documenter
   explicitement plutôt qu'à faire glisser silencieusement.
 
 ## Prochaine étape probable

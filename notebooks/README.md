@@ -27,7 +27,8 @@ les Parquet Bronze déjà produits (`python -m gravia.bronze`).
 **Deux vraies trouvailles, corrigées dans le code de production (pas seulement documentées) :**
 1. `lieux.nbv` contient des artefacts Excel non résolus (`#ERREUR`, `#VALEURMULTI`, 55 lignes sur
    273 226) jamais documentés avant cet audit — traités désormais comme la sentinelle `-1`,
-   pas comme un NULL silencieux (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`, CLAUDE.md).
+   pas comme un NULL silencieux (cf. `gravia.silver.NBV_EXCEL_ARTIFACTS`,
+   [Architecture_GRAVIA.md §4.1](../docs/Architecture_GRAVIA.md)).
 2. `grav` (usagers) : aucun code inattendu trouvé sur les 5 millésimes réels, mais l'agrégation
    `.any()` de Polars renvoie `False` (pas `null`) sur un groupe entièrement null — un accident
    dont tous les usagers auraient un `grav` illisible aurait été silencieusement classé "non
