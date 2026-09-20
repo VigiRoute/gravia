@@ -1,11 +1,19 @@
 """Benchmark de modèles pour la sévérité d'accident, tracké dans MLflow.
 
-Compare trois familles de modèles, comme prévu par docs/Architecture_GRAVIA.md §3 (« Benchmark :
-régression logistique (baseline), Random Forest, LightGBM/XGBoost — modèle retenu selon les
-métriques ») sur les splits produits par `ml/features/gold_features.py`. XGBoost n'est pas ajouté
-en plus de LightGBM : le document cite « LightGBM/XGBoost » comme une alternative, pas les deux à
-la fois, et LightGBM est déjà la dépendance figée du projet, déjà validée dans les notebooks
-(reproduction à 0,001 près du baseline publié, cf. `ml/features/gold_features.py`).
+Compare quatre familles de modèles, comme prévu par docs/Architecture_GRAVIA.md §3 (« Benchmark :
+régression logistique (baseline), Random Forest, LightGBM/XGBoost, modèle retenu selon les
+métriques ») sur les splits produits par `ml/features/gold_features.py`. XGBoost a d'abord été
+laissé de côté (le document cite « LightGBM/XGBoost » comme une alternative, LightGBM était déjà
+la dépendance figée du projet, validée dans les notebooks à 0,001 près du baseline publié), puis
+ajouté sur demande explicite pour comparer réellement les deux plutôt que de s'appuyer sur cette
+justification seule.
+
+**Servabilité, pas seulement performance** : `ml/serving/model.py::load_staged_model` charge le
+modèle promu nativement via `mlflow.lightgbm.load_model` (nécessaire pour préserver le dtype
+`category` pandas, cf. limitation ci-dessous) — il ne sait pas charger un modèle XGBoost. Si
+XGBoost devait un jour battre LightGBM sur ce benchmark, `register_best` refuse de le promouvoir
+tant que `ml/serving` ne sait pas le charger (cf. `SERVABLE_MODELS`), pour ne pas casser le
+serving en production au premier réentraînement planifié qui tomberait sur ce cas.
 
 Encodage : LightGBM consomme les colonnes catégorielles nativement (`category` pandas, comme dans
 les notebooks) ; régression logistique et Random Forest n'ont pas de support catégoriel natif en
@@ -45,10 +53,12 @@ import lightgbm as lgb
 import mlflow
 import mlflow.lightgbm
 import mlflow.sklearn
+import mlflow.xgboost
 import numpy as np
 import pandas as pd
 import polars as pl
 import sqlalchemy as sa
+import xgboost as xgb
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -69,7 +79,7 @@ from ml.features.gold_features import (
 
 RANDOM_STATE = 42
 N_ESTIMATORS = 300
-LEARNING_RATE = 0.05  # LightGBM uniquement (cf. notebooks/eda_baseline_baac.ipynb)
+LEARNING_RATE = 0.05  # LightGBM et XGBoost (cf. notebooks/eda_baseline_baac.ipynb)
 
 #: Seuils CDC (cf. CLAUDE.md, seuils et métriques).
 TARGET_RECALL = 0.80
@@ -78,6 +88,10 @@ MIN_F1_MACRO = 0.70
 EXPERIMENT_NAME = "gravia-severity-classifier"
 REGISTERED_MODEL_NAME = "gravia-severity-classifier"
 STAGING_ALIAS = "staging"
+
+#: Familles de modèles que `ml/serving/model.py::load_staged_model` sait charger nativement
+#: (cf. docstring module). `register_best` ne promeut jamais un modèle hors de cet ensemble.
+SERVABLE_MODELS = {"lightgbm"}
 
 FeatureSet = Literal["baseline", "enriched"]
 
@@ -194,6 +208,29 @@ def _fit_lightgbm(
     return model
 
 
+def _fit_xgboost(
+    x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str], other: list[str]
+) -> xgb.XGBClassifier:
+    # scale_pos_weight = équivalent XGBoost de class_weight="balanced" (absent de son API) :
+    # ratio négatifs/positifs, pour rééquilibrer sans sur-échantillonner.
+    scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
+    model = xgb.XGBClassifier(
+        n_estimators=N_ESTIMATORS,
+        learning_rate=LEARNING_RATE,
+        scale_pos_weight=scale_pos_weight,
+        enable_categorical=True,
+        tree_method="hist",
+        random_state=RANDOM_STATE,
+    )
+    # scikit-learn 1.9 a retiré l'attribut de classe `_estimator_type` de `ClassifierMixin`
+    # (remplacé par le système de tags `__sklearn_tags__`) ; XGBoost 3.0.5 s'appuie encore
+    # dessus dans `save_model()` (`mlflow.xgboost.log_model` en dépend) et lève `TypeError:
+    # _estimator_type undefined` sans ce contournement, constaté en testant.
+    model._estimator_type = "classifier"
+    model.fit(x_train, y_train)
+    return model
+
+
 #: Un « builder » par famille de modèle : même signature `(x_train, y_train, categorical,
 #: other) -> estimateur ajusté`, exposant `.predict_proba` — assez uniforme pour un `evaluate_model`
 #: commun, sans forcer LightGBM dans le même `Pipeline` scikit-learn que les deux autres (son
@@ -202,12 +239,14 @@ MODEL_BUILDERS = {
     "logistic_regression": _fit_logistic_regression,
     "random_forest": _fit_random_forest,
     "lightgbm": _fit_lightgbm,
+    "xgboost": _fit_xgboost,
 }
 
 _MLFLOW_LOG_MODEL = {
     "logistic_regression": mlflow.sklearn.log_model,
     "random_forest": mlflow.sklearn.log_model,
     "lightgbm": mlflow.lightgbm.log_model,
+    "xgboost": mlflow.xgboost.log_model,
 }
 
 
@@ -352,13 +391,23 @@ def register_best(best: dict[str, Any]) -> str | None:
 
     Returns:
         Le numéro de version enregistrée, ou `None` si les seuils CDC ne sont pas franchis
-        (promotion bloquée, cf. CLAUDE.md — « Bloquer la promotion en production »).
+        (promotion bloquée, cf. CLAUDE.md — « Bloquer la promotion en production ») ou si
+        `ml/serving` ne sait pas charger cette famille de modèle (cf. `SERVABLE_MODELS`).
     """
     if not best["meets_gates"]:
         print(
             f"  [bloqué] {best['name']} : recall={best['recall']:.3f} / "
-            f"f1_macro={best['f1_macro']:.3f} — sous les seuils CDC (0.80 / 0.70), "
+            f"f1_macro={best['f1_macro']:.3f}, sous les seuils CDC (0.80 / 0.70), "
             "non enregistré."
+        )
+        return None
+
+    if best["name"] not in SERVABLE_MODELS:
+        print(
+            f"  [bloqué] {best['name']} franchit les seuils CDC mais ml/serving/model.py ne sait "
+            f"pas encore le charger nativement (seul {sorted(SERVABLE_MODELS)} l'est) : non "
+            "enregistré, pour ne pas casser le serving en production. Mettre à jour "
+            "ml/serving/model.py avant de promouvoir cette famille de modèle."
         )
         return None
 

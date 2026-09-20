@@ -7,7 +7,7 @@ Deux sources de données différentes, assumées :
 - **Équité et dérive** : recalculées pour de vrai contre la stack dev (`ml.fairness.audit`,
   `ml.monitoring.drift`) — mêmes résultats que documentés, pas une resaisie manuelle qui pourrait
   diverger silencieusement des vrais calculs.
-- **Benchmark des 3 modèles** : chiffres repris tels quels de `docs/ml_training_results.md`
+- **Benchmark de modèles** : chiffres repris tels quels de `docs/ml_training_results.md`
   (déjà validés à 0,001 près contre `notebooks/eda_baseline_baac.ipynb`), pas recalculés ici —
   relancer `ml.training.benchmark` prend plusieurs minutes (Random Forest, 300 arbres sur
   273 226 lignes) pour produire des nombres déjà connus et publiés.
@@ -56,15 +56,18 @@ BENCHMARK_RESULTS: dict[str, dict[str, dict[str, float]]] = {
         "LightGBM": {"recall": 0.807, "f1_macro": 0.707},
     },
     "enriched": {
-        "Régression\nlogistique": {"recall": 0.807, "f1_macro": 0.708},
-        "Random\nForest": {"recall": 0.811, "f1_macro": 0.710},
+        "Régression\nlogistique": {"recall": 0.806, "f1_macro": 0.708},
+        "Random\nForest": {"recall": 0.810, "f1_macro": 0.711},
         "LightGBM": {"recall": 0.807, "f1_macro": 0.727},
+        # Ajouté le 2026-09-20, testé sur "enriched" uniquement (pas "baseline") : sous le seuil
+        # CDC de recall, cf. docs/ml_training_results.md, section "XGBoost : ajouté et écarté".
+        "XGBoost": {"recall": 0.711, "f1_macro": 0.520},
     },
 }
 
 
 def plot_benchmark_comparison(output_dir: Path) -> Path:
-    """Recall/F1 macro des 3 modèles, config baseline vs enriched, avec les seuils CDC."""
+    """Recall/F1 macro des modèles, config baseline vs enriched, avec les seuils CDC."""
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharey=True)
 
     for ax, (config_name, results) in zip(axes, BENCHMARK_RESULTS.items(), strict=True):
@@ -81,13 +84,11 @@ def plot_benchmark_comparison(output_dir: Path) -> Path:
         ax.set_xticks(list(x))
         ax.set_xticklabels(models)
         ax.set_title(f"Config « {config_name} »")
-        ax.set_ylim(0.6, 0.85)
+        ax.set_ylim(0.0, 0.85)
 
     axes[0].set_ylabel("Score")
     axes[0].legend(loc="lower right", fontsize=8)
-    fig.suptitle(
-        "Benchmark des 3 modèles — traits pointillés = seuils CDC (recall ≥ 0,80 / F1 ≥ 0,70)"
-    )
+    fig.suptitle("Benchmark de modèles, traits pointillés = seuils CDC (recall ≥ 0,80 / F1 ≥ 0,70)")
     fig.tight_layout()
 
     path = output_dir / "benchmark_recall_f1.png"

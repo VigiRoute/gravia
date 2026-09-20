@@ -2,10 +2,12 @@
 
 Résultats du benchmark prévu par [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md) (« Benchmark :
 régression logistique (baseline), Random Forest, LightGBM/XGBoost, modèle retenu selon les
-métriques »), produit par [`ml/training/benchmark.py`](../ml/training/benchmark.py). XGBoost n'a
-pas été ajouté à côté de LightGBM : le document cite les deux comme une alternative, pas comme
-deux modèles à tester en plus l'un de l'autre, et LightGBM est déjà la dépendance figée du projet,
-déjà validée dans les notebooks (cf. [notebooks/README.md](../notebooks/README.md)).
+métriques »), produit par [`ml/training/benchmark.py`](../ml/training/benchmark.py). XGBoost avait
+d'abord été laissé de côté (le document citait « LightGBM/XGBoost » comme une alternative, pas
+comme deux modèles à tester en plus l'un de l'autre, et LightGBM était déjà la dépendance figée du
+projet, validée dans les notebooks) puis ajouté sur demande explicite pour une vraie comparaison
+(cf. section « Configuration `"enriched"` » ci-dessous) : il ressort nettement moins bon que les
+trois autres candidats sur ce jeu de données.
 
 Protocole identique à la référence déjà publiée (cf. [CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)) : train
 2019-2021, seuil de décision calibré sur validation 2022 (cible recall ≥ 0,80), évalué sur le
@@ -32,23 +34,55 @@ comparaison, rechargeable explicitement via `models:/gravia-severity-classifier/
 
 Flags véhicule/usager (`flag_2roues_motorise`/`flag_poids_lourd`/`flag_velo_edp`/`flag_pieton`),
 meilleure configuration déjà repérée dans `notebooks/eval_enrichissement_vs_seuil.ipynb` (config C :
-recall 0,805 / F1 macro 0,727 avec un seuil unique). Même protocole, mêmes 3 modèles :
+recall 0,805 / F1 macro 0,727 avec un seuil unique). Même protocole, désormais 4 modèles (XGBoost
+ajouté le 2026-09-20, cf. « XGBoost : ajouté et écarté » ci-dessous) :
 
 | Modèle | Recall grave | F1 macro | Seuil calibré | Seuils CDC |
 |---|---|---|---|---|
-| Régression logistique | 0,807 | 0,708 | 0,45 | Atteints |
-| Random Forest | 0,811 | 0,710 | 0,39 | Atteints |
+| Régression logistique | 0,806 | 0,708 | 0,45 | Atteints |
+| Random Forest | 0,810 | 0,711 | 0,39 | Atteints |
 | **LightGBM** | 0,807 | **0,727** | 0,47 | **Atteints** |
+| XGBoost | 0,711 | 0,520 | 0,43 | Non atteints (recall < 0,80) |
 
-→ Cette fois **les trois modèles franchissent les deux seuils CDC** (pas seulement LightGBM).
-LightGBM enriched reproduit à 0,000/0,002 près la config C du notebook (recall 0,805/F1 0,727) ;
-même conclusion qu'à l'époque : l'enrichissement seul (sans calibration par département) apporte
-un vrai gain de F1 macro (0,707 → 0,727) sans coût sur le recall. **Meilleur modèle du benchmark
+→ **LightGBM reste le meilleur modèle**, seul candidat au-dessus de 0,72 de F1 macro et le seul
+avec XGBoost à ne jamais franchir les deux seuils. L'enrichissement seul (sans calibration par
+département) apporte un vrai gain de F1 macro par rapport au baseline (0,707/0,708 → 0,727) sans
+coût sur le recall, pour les trois modèles qui le franchissent. **Meilleur modèle du benchmark
 toutes configurations confondues, promu à l'alias `staging`** (`gravia-severity-classifier` v2,
-2026-08-27, décision explicite de l'utilisateur). Rechargé après promotion et revérifié :
+2026-08-27, décision explicite de l'utilisateur ; réentraîné et re-promu en v4 le 2026-09-20 lors
+de l'ajout de XGBoost au comparatif, même architecture/hyperparamètres, poids légèrement
+différents). Rechargé après promotion et revérifié :
 `mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
 
-![Recall et F1 macro des 3 modèles, config baseline vs enriched](img/benchmark_recall_f1.png)
+### XGBoost : ajouté et écarté (2026-09-20)
+
+Ajouté au benchmark sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
+justification « LightGBM/XGBoost cités comme une alternative » ci-dessus. Deux problèmes réels
+d'environnement trouvés et corrigés avant de pouvoir mesurer quoi que ce soit :
+
+1. **XGBoost 3.4.1 plante nativement sur ce poste Windows** : `OSError: exception: access
+   violation` dans `XGProxyDMatrixCreate`, dès le premier `.fit()`, y compris sur des données
+   purement numériques sans LightGBM chargé (donc pas un conflit entre les deux bibliothèques,
+   contrairement à l'hypothèse initiale). `xgboost==3.0.5` ne plante pas.
+2. **`scikit-learn==1.9.0` a retiré l'attribut de classe `_estimator_type`** de `ClassifierMixin`
+   (remplacé par le système de tags `__sklearn_tags__`), dont `XGBClassifier.save_model()` dépend
+   encore (`mlflow.xgboost.log_model` en dépend à son tour) ; sans contournement, `TypeError:
+   _estimator_type undefined`. Corrigé en le repositionnant explicitement après instanciation
+   (`model._estimator_type = "classifier"`, cf. `ml/training/benchmark.py::_fit_xgboost`).
+
+Une fois ces deux problèmes réglés, XGBoost s'entraîne et s'évalue normalement, mais son résultat
+est net : **recall 0,711, F1 macro 0,520**, sous le seuil CDC de recall (0,80) et loin du F1 macro
+des trois autres candidats. Pas de tuning d'hyperparamètres au-delà de ce que les trois autres
+modèles reçoivent (`n_estimators=300`, `learning_rate=0,05`, `scale_pos_weight` équivalent au
+`class_weight="balanced"` des autres) : un XGBoost plus poussé ferait probablement mieux, mais ce
+n'est pas l'objet de ce benchmark (comparaison à réglages par défaut équivalents, comme pour les
+trois autres). **`register_best` refuse de toute façon de promouvoir XGBoost même s'il franchissait
+les seuils** : `ml/serving/model.py::load_staged_model` charge le modèle promu nativement via
+`mlflow.lightgbm.load_model`, il ne sait pas charger un modèle XGBoost — `SERVABLE_MODELS` dans
+`ml/training/benchmark.py` bloque toute promotion hors de cet ensemble, pour ne pas casser le
+serving en production au prochain réentraînement planifié qui tomberait sur ce cas.
+
+![Recall et F1 macro des modèles, config baseline vs enriched](img/benchmark_recall_f1.png)
 
 *Généré par [`docs/generate_result_charts.py`](generate_result_charts.py) à partir des chiffres
 ci-dessus (`python -m docs.generate_result_charts`).*
