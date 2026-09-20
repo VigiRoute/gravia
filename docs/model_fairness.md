@@ -3,7 +3,8 @@
 Réponds au CDC EC-6 : *« IA éthique : tests d'équité (parité selon âge/sexe, equalized odds),
 documentation et atténuation des biais »*. Produit par
 [`ml/fairness/audit.py`](../ml/fairness/audit.py), sur le holdout test 2023 (jamais vu à
-l'entraînement, même protocole que le reste du benchmark, cf. CLAUDE.md).
+l'entraînement, même protocole que le reste du benchmark, cf.
+[ml_training_results.md](ml_training_results.md)).
 
 ## Méthodologie
 
@@ -27,10 +28,10 @@ Deux métriques par sous-groupe :
 - **Parité démographique** : taux de prédiction « grave » par groupe (`taux_predit_grave`).
 - ***Equalized odds*** : rappel/TPR (`recall`) et taux de faux positifs (`fpr`) par groupe,
   rapportés en écart absolu entre sous-groupes. **Aucun seuil pass/fail n'est imposé** :
-  contrairement à PSI/recall/F1/couverture (cf. CLAUDE.md, seuils et métriques), le CDC ne fixe
-  aucun seuil numérique pour l'équité — en inventer un ici serait arbitraire, pas une exigence
-  retranscrite. Les écarts sont documentés pour arbitrage, à l'image de l'angle mort déjà
-  documenté du seuil unique par département (CLAUDE.md).
+  contrairement à PSI/recall/F1/couverture (cf. [CDC_GRAVIA.md §11](CDC_GRAVIA.md)), le CDC ne
+  fixe aucun seuil numérique pour l'équité — en inventer un ici serait arbitraire, pas une
+  exigence retranscrite. Les écarts sont documentés pour arbitrage, à l'image de l'angle mort
+  déjà documenté du seuil unique par département ([CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)).
 
 ## Résultats (2026-09-13, test 2023, 20 830 accidents à conducteur unique)
 
@@ -90,7 +91,7 @@ chiffres ci-dessus.*
   faux négatif (sur-priorisation de secours plutôt que sous-priorisation), mais reste une
   iniquité mesurable à ne pas ignorer.
 - **Tension non résolue, à arbitrer avant production** — dans l'esprit de l'angle mort du seuil
-  unique déjà documenté (CLAUDE.md, CDC §13.7/§14) : corriger ce biais demanderait probablement
+  unique déjà documenté (CDC §13.7/§14) : corriger ce biais demanderait probablement
   un seuil de décision différencié par tranche d'âge (comme envisagé par zone géographique),
   avec le même arbitrage à faire entre équité locale et simplicité/performance globale du seuil
   unique actuel. **Non traité ici** : ce document constate et documente le biais (exigence

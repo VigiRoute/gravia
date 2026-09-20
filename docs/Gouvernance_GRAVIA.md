@@ -101,7 +101,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 
 | Dimension | Règle | Contrôle |
 |---|---|---|
-| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}` — `-1` = non renseigné, codé explicitement par le BAAC, cf. CLAUDE.md) |
+| Exactitude | Valeurs conformes aux nomenclatures BAAC | Great Expectations (`gravité ∈ {-1,1..4}` — `-1` = non renseigné, codé explicitement par le BAAC, cf. [Architecture_GRAVIA.md §4.1](Architecture_GRAVIA.md)) |
 | Complétude | Champs clés non nuls (identifiant, date, lieu) | Tests de complétude par millésime |
 | Cohérence | Plausibilité (âge ≤ 110 ans, borné en Silver ; `an`, `vma`/`nbv` bornés en Great Expectations ; `dep` non nul mais sans borne de valeur) | Règles de validation — les coordonnées ne sont plus contrôlées ici : `lat`/`long` sont supprimées avant ce contrôle (pseudonymisation dès la Silver, cf. AIPD §5) |
 | Unicité | Pas de doublons d'accidents | Déduplication en Silver |
@@ -121,7 +121,7 @@ Tout lot non conforme **bloque la promotion vers Gold** (échec de la tâche `qu
 | Cloisonnement | Séparation des environnements dev / prod | **Fait** — Docker Compose (dev) / Terraform-LocalStack (cible prod), jamais mélangés |
 | Journalisation | Logs d'accès et de prédictions horodatés | **Partiel** — prédictions journalisées en logs structurés ; pas encore de registre interrogeable 12 mois (cf. AIPD §5) |
 
-> **Portée de « authentification forte »** : cette politique vise la **surface exposée** — l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut — `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée (CLAUDE.md) — pas une dérogation silencieuse à la politique de sécurité de production.
+> **Portée de « authentification forte »** : cette politique vise la **surface exposée** — l'API de prédiction et les accès aux données réelles en production. Elle ne s'applique pas à l'outillage interne de la stack dev (Airflow, MLflow, Grafana), qui tourne sur le réseau Docker local, n'est jamais exposé publiquement et simplifie volontairement son authentification pour la vélocité (ex. Airflow dev désactive son auth par défaut — `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS`, cf. `AVANCEMENT_GRAVIA.md`). Écart assumé et documenté, cohérent avec la séparation dev/prod déjà posée ([Architecture_GRAVIA.md §2.1](Architecture_GRAVIA.md)) — pas une dérogation silencieuse à la politique de sécurité de production.
 
 ## 8. Disponibilité et continuité
 

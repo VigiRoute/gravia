@@ -107,7 +107,7 @@ Aucun (hébergement UE / local).
 |---|---|---|
 | Pseudonymisation dès la Silver | **Fait** — `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels. Trouvé en auditant a posteriori : `adr` (adresse postale, quasi 100 % renseignée) et `voie`/`v1`/`v2`/`pr`/`pr1` (localisation métrique sur la route) restaient conservées telles quelles, contredisant cette mesure — corrigé, Silver régénéré sur les 5 millésimes, sans impact sur Gold/le modèle (vérifié : ces colonnes n'y sont pas consommées) | Architecte IA |
 | Agrégation géographique anti-ré-identification | **Fait** — localisation restant disponible via `dep`/`com` uniquement (cf. `silver.py`) | Architecte IA |
-| Chiffrement repos + transit | À implémenter — dev local sans TLS ; cible cloud (S3/RDS chiffrés, TLS) documentée mais non déployée (pas de budget cloud, cf. CLAUDE.md) | RSSI |
+| Chiffrement repos + transit | À implémenter — dev local sans TLS ; cible cloud (S3/RDS chiffrés, TLS) documentée mais non déployée (pas de budget cloud, cf. [Architecture_GRAVIA.md §2.1](Architecture_GRAVIA.md)) | RSSI |
 | Contrôle d'accès moindre privilège | À implémenter — pas de séparation de rôles IAM/PostgreSQL en dev ; cible documentée | RSSI |
 | Tests d'équité et atténuation des biais | **Partiellement fait** — tests faits et vérifiés sur données réelles (`ml/fairness/audit.py`, [docs/model_fairness.md](model_fairness.md)) ; **atténuation non faite**, tension documentée comme point ouvert à trancher avant production | Architecte IA |
 | Explicabilité SHAP exposée via l'API | **Fait** — vérifié en conteneur réel (`ml/serving/`, top 5 contributions dans la réponse) | Architecte IA |
