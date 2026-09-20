@@ -89,7 +89,39 @@ def health() -> dict[str, str]:
     return {"status": "ok", "modele_version": _state["model"].version}
 
 
-@app.post("/v1/predict-severity", response_model=PredictSeverityResponse)
+def _request_fields_reference() -> str:
+    """Tableau markdown (valeurs possibles par champ) affiché sur `/docs`.
+
+    Généré depuis les `description` des champs de `PredictSeverityRequest` plutôt que dupliqué
+    à la main : les valeurs affichées dans Swagger ne peuvent alors pas diverger du schéma réel.
+    """
+    rows = ["| Champ | Valeurs possibles |", "|---|---|"]
+    for name, field in PredictSeverityRequest.model_fields.items():
+        rows.append(f"| `{name}` | {field.description or ''} |")
+    return "\n".join(rows)
+
+
+_PREDICT_DESCRIPTION = f"""Estime la gravité probable d'un accident à partir des caractéristiques
+connues au moment du signalement.
+
+**Assiste, ne décide pas** (human-in-the-loop, CDC_GRAVIA.md EC-7) : cette réponse est une
+estimation destinée à l'opérateur, pas une action de dispatching.
+
+### Valeurs possibles par champ
+
+Les codes numériques reprennent le dictionnaire officiel ONISR (cf. CLAUDE.md) ; `-1` signifie
+« non renseigné » pour la quasi-totalité d'entre eux.
+
+{_request_fields_reference()}
+"""
+
+
+@app.post(
+    "/v1/predict-severity",
+    response_model=PredictSeverityResponse,
+    summary="Estimer la gravité probable d'un accident",
+    description=_PREDICT_DESCRIPTION,
+)
 def predict(request: PredictSeverityRequest) -> PredictSeverityResponse:
     """Estime la gravité probable d'un accident à partir des caractéristiques du signalement.
 
