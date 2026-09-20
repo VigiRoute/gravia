@@ -6,7 +6,18 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
+**Dernière mise à jour :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
+justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
+section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
+CDC, LightGBM reste le meilleur modèle. Deux problèmes réels d'environnement trouvés et corrigés
+au passage (XGBoost 3.4.1 plante nativement sur ce poste Windows ; `scikit-learn==1.9.0` a retiré
+un attribut dont XGBoost dépend encore pour la sauvegarde MLflow). Garde-fou ajouté par la même
+occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/serving/model.py` ne
+sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
+puisse pas casser le serving en production si un autre framework l'emportait un jour.
+
+**Mise à jour précédente :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
 vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
 pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
 reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
@@ -157,11 +168,12 @@ CDC sur les deux dépôts.
   passant par `Utf8` d'abord. `ml/` ajouté à la couverture de tests suivie (`pyproject.toml`).
 
 - **Entraînement / benchmark de modèles** ([ml/training/benchmark.py](../ml/training/benchmark.py),
-  résultats détaillés dans [docs/ml_training_results.md](ml_training_results.md)) : benchmark 3
+  résultats détaillés dans [docs/ml_training_results.md](ml_training_results.md)) : benchmark 4
   familles de modèles comme prévu par
   [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md) (régression logistique, Random Forest,
-  LightGBM ; XGBoost non ajouté (le document cite « LightGBM/XGBoost » comme alternative, pas
-  les deux), chacune trackée comme un run MLflow (params, métriques, modèle). Sélection du
+  LightGBM, XGBoost, ce dernier ajouté le 2026-09-20 et écarté, recall sous le seuil CDC, cf.
+  ml_training_results.md), chacune trackée comme un run MLflow (params, métriques, modèle).
+  Sélection du
   meilleur modèle : priorité au recall (coût asymétrique, cf. CDC), F1 macro en second critère.
   Seul un modèle franchissant les deux seuils CDC (recall ≥ 0,80, F1 macro ≥ 0,70) est enregistré
   dans le registry MLflow, à l'alias `staging` (les stages Staging/Prod sont dépréciés depuis
@@ -465,7 +477,7 @@ ne reste sans réponse préparée.
 | Compétence | Couverture |
 |---|---|
 | C4.1 : Rédiger un cahier des charges pour la solution IA | [CDC_GRAVIA.md](CDC_GRAVIA.md) dans son ensemble |
-| C4.2 : Créer un algorithme IA adapté aux données et conforme au CDC | Benchmark 3 familles de modèles, LightGBM enriched retenu (recall 0,807/F1 0,727), section « Entraînement / benchmark de modèles » ; [ml_training_results.md](ml_training_results.md) |
+| C4.2 : Créer un algorithme IA adapté aux données et conforme au CDC | Benchmark 4 familles de modèles, LightGBM enriched retenu (recall 0,807/F1 0,727), section « Entraînement / benchmark de modèles » ; [ml_training_results.md](ml_training_results.md) |
 | C4.3 : Adapter l'infrastructure via construction d'API | `POST /v1/predict-severity` (`ml/serving/`), vérifié en conteneur réel, section « Serving » |
 | C4.4 : Concevoir des pipelines CI/CD pour automatiser le déploiement | CI lint+tests (`gravia/.github/workflows/ci.yml`) ; publication d'image (`publish-serving-image.yml`) ; déploiement Terraform+K8s (`gravia-mlops/.github/workflows/deploy.yml`) |
 | C4.5 : Développer des scripts de réentraînement pour automatiser le ML | `gravia/.github/workflows/retrain.yml`, section « Réentraînement planifié » |

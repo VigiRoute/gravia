@@ -23,6 +23,9 @@ dependencies = [
     # Modélisation
     "scikit-learn==1.9.0",
     "lightgbm==4.6.0",
+    # 3.4.1 plante (OSError: access violation dans XGProxyDMatrixCreate) sur ce poste Windows,
+    # même seul, sans LightGBM chargé, dès le premier .fit() ; 3.0.5 ne plante pas.
+    "xgboost==3.0.5",
     "shap==0.52.0",
     # Déjà une dépendance transitive de scikit-learn, figée ici explicitement car importée
     # directement (test de Welch, notebooks/explo_trafic_paris_correlation_annuel.ipynb).

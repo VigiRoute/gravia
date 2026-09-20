@@ -102,3 +102,12 @@ def test_register_best_returns_none_without_calling_mlflow_when_gates_not_met() 
     best = {"name": "logistic_regression", "recall": 0.75, "f1_macro": 0.60, "meets_gates": False}
 
     assert register_best(best) is None
+
+
+def test_register_best_returns_none_for_non_servable_model_even_if_gates_met() -> None:
+    """ml/serving/model.py ne sait charger que LightGBM nativement : promouvoir XGBoost (ou tout
+    autre membre de MODEL_BUILDERS hors SERVABLE_MODELS) casserait le serving, même si ce modèle
+    franchit les seuils CDC."""
+    best = {"name": "xgboost", "recall": 0.85, "f1_macro": 0.75, "meets_gates": True}
+
+    assert register_best(best) is None

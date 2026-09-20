@@ -110,8 +110,11 @@ def test_run_benchmark_and_register_best_on_synthetic_data(isolated_mlflow_names
     y_test = test[LABEL_COLUMN].to_pandas().astype(int)
 
     mlflow.set_experiment(TEST_EXPERIMENT_NAME)
+    # "lightgbm", pas un autre membre de MODEL_BUILDERS : seule famille dans SERVABLE_MODELS,
+    # register_best rejette toute autre famille même si elle franchit les seuils CDC (cf.
+    # ml/serving/model.py, qui ne sait charger que LightGBM nativement).
     result = benchmark_module.evaluate_model(
-        "logistic_regression",
+        "lightgbm",
         "baseline",
         x_train,
         y_train,
@@ -124,7 +127,7 @@ def test_run_benchmark_and_register_best_on_synthetic_data(isolated_mlflow_names
     )
 
     try:
-        assert result["name"] == "logistic_regression"
+        assert result["name"] == "lightgbm"
         assert 0.0 <= result["recall"] <= 1.0
         assert 0.0 <= result["f1_macro"] <= 1.0
         assert result["run_id"]
