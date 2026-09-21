@@ -6,7 +6,22 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+**Dernière mise à jour :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
+(`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
+à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
+explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
+(données chronologiques). Appliquée aux 4 familles, y compris celles jamais promues : le garde-fou
+`SERVABLE_MODELS` (cf. entrée précédente) empêche déjà toute promotion hors de LightGBM, donc pas
+de risque de casser le serving. Verdict : **le tuning ne change ni le modèle retenu ni sa
+performance de façon notable** (LightGBM quasi inchangé, réglages par défaut déjà proches de
+l'optimum) ; seul XGBoost bouge nettement mais reste sous le seuil CDC dans les deux cas (cf.
+[ml_training_results.md](ml_training_results.md), section « Recherche d'hyperparamètres »). Un vrai
+bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estimateur final par
+`clone()` + refit interne, qui efface les attributs d'instance ajoutés après coup (le contournement
+XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
+réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
+
+**Mise à jour précédente :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
 benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
 justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
 section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
@@ -17,7 +32,7 @@ occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/se
 sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
 puisse pas casser le serving en production si un autre framework l'emportait un jour.
 
-**Mise à jour précédente :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
+**Mise à jour d'avant :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
 vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
 pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
 reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
@@ -172,8 +187,9 @@ CDC sur les deux dépôts.
   familles de modèles comme prévu par
   [Architecture_GRAVIA.md §3](Architecture_GRAVIA.md) (régression logistique, Random Forest,
   LightGBM, XGBoost, ce dernier ajouté le 2026-09-20 et écarté, recall sous le seuil CDC, cf.
-  ml_training_results.md), chacune trackée comme un run MLflow (params, métriques, modèle).
-  Sélection du
+  ml_training_results.md), chacune avec ses hyperparamètres réglés par `RandomizedSearchCV`
+  (2026-09-21, cf. entrée « Dernière mise à jour » ci-dessus), trackée comme un run MLflow
+  (params, métriques, modèle). Sélection du
   meilleur modèle : priorité au recall (coût asymétrique, cf. CDC), F1 macro en second critère.
   Seul un modèle franchissant les deux seuils CDC (recall ≥ 0,80, F1 macro ≥ 0,70) est enregistré
   dans le registry MLflow, à l'alias `staging` (les stages Staging/Prod sont dépréciés depuis
@@ -477,7 +493,7 @@ ne reste sans réponse préparée.
 | Compétence | Couverture |
 |---|---|
 | C4.1 : Rédiger un cahier des charges pour la solution IA | [CDC_GRAVIA.md](CDC_GRAVIA.md) dans son ensemble |
-| C4.2 : Créer un algorithme IA adapté aux données et conforme au CDC | Benchmark 4 familles de modèles, LightGBM enriched retenu (recall 0,807/F1 0,727), section « Entraînement / benchmark de modèles » ; [ml_training_results.md](ml_training_results.md) |
+| C4.2 : Créer un algorithme IA adapté aux données et conforme au CDC | Benchmark 4 familles de modèles avec recherche d'hyperparamètres, LightGBM enriched retenu (recall 0,808/F1 0,726), section « Entraînement / benchmark de modèles » ; [ml_training_results.md](ml_training_results.md) |
 | C4.3 : Adapter l'infrastructure via construction d'API | `POST /v1/predict-severity` (`ml/serving/`), vérifié en conteneur réel, section « Serving » |
 | C4.4 : Concevoir des pipelines CI/CD pour automatiser le déploiement | CI lint+tests (`gravia/.github/workflows/ci.yml`) ; publication d'image (`publish-serving-image.yml`) ; déploiement Terraform+K8s (`gravia-mlops/.github/workflows/deploy.yml`) |
 | C4.5 : Développer des scripts de réentraînement pour automatiser le ML | `gravia/.github/workflows/retrain.yml`, section « Réentraînement planifié » |

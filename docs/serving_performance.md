@@ -76,8 +76,8 @@ l'API à chaque requête) pour les 3 candidats du benchmark (config `"enriched"`
 | Modèle | predict p50 | predict p95 | Recall / F1 macro |
 |---|---:|---:|---|
 | Régression logistique | ~3 ms | ~3,5 ms | 0,807 / 0,708 |
-| Random Forest | **~30 ms** | **~34-44 ms** | 0,811 / 0,710 |
-| **LightGBM (déployé)** | ~4 ms | ~5-6 ms | 0,807 / **0,727** |
+| Random Forest | **~30 ms** | **~34-44 ms** | 0,813 / 0,712 |
+| **LightGBM (déployé)** | ~4 ms | ~5-6 ms | 0,808 / **0,726** |
 
 **LightGBM n'est pas seulement le meilleur modèle du benchmark : c'est aussi l'un des plus
 rapides**, quasiment à égalité avec la régression logistique et **~8× plus rapide que Random
