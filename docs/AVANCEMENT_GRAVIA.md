@@ -6,7 +6,23 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
+**Dernière mise à jour :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
+alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
+provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
+d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
+(p95 > 300 ms 5 min, taux d'erreur > 1 % 5 min, cible Prometheus injoignable 1 min), pas de canal
+de notification externe câblé (pas de relais SMTP/webhook réel dans la stack dev, un canal factice
+serait trompeur) : l'état Normal/Pending/Firing reste vérifiable dans Alerting > Alert rules,
+suffisant pour démontrer la capacité de détection. **Vrai bug trouvé et corrigé en testant** :
+la requête de taux d'erreur renvoyait un vecteur Prometheus vide (pas 0) tant qu'aucune erreur
+n'était jamais survenue, la division disparaissait entièrement au lieu de valoir 0, déclenchant à
+tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` sur le numérateur.
+**Vérifié de bout en bout sur un vrai cycle** : conteneur `serving` arrêté à la main → règle
+« cible injoignable » passe Normal → Pending → Firing (~1 min) → conteneur redémarré → retour à
+Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
+positif).
+
+**Mise à jour précédente :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
 (`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
 à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
 explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
@@ -21,7 +37,7 @@ bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estima
 XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
 réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
 
-**Mise à jour précédente :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+**Mise à jour d'avant :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
 benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
 justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
 section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
@@ -32,7 +48,7 @@ occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/se
 sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
 puisse pas casser le serving en production si un autre framework l'emportait un jour.
 
-**Mise à jour d'avant :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
+**Mise à jour antérieure :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
 vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
 pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
 reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
