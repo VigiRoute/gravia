@@ -56,12 +56,15 @@ BENCHMARK_RESULTS: dict[str, dict[str, dict[str, float]]] = {
         "LightGBM": {"recall": 0.807, "f1_macro": 0.707},
     },
     "enriched": {
-        "Régression\nlogistique": {"recall": 0.806, "f1_macro": 0.708},
-        "Random\nForest": {"recall": 0.810, "f1_macro": 0.711},
-        "LightGBM": {"recall": 0.807, "f1_macro": 0.727},
+        # Recherche d'hyperparamètres ajoutée le 2026-09-21 (cf. docs/ml_training_results.md,
+        # section "Recherche d'hyperparamètres") : ces 4 chiffres sont post-tuning, pas les
+        # réglages fixes d'origine.
+        "Régression\nlogistique": {"recall": 0.807, "f1_macro": 0.708},
+        "Random\nForest": {"recall": 0.813, "f1_macro": 0.712},
+        "LightGBM": {"recall": 0.808, "f1_macro": 0.726},
         # Ajouté le 2026-09-20, testé sur "enriched" uniquement (pas "baseline") : sous le seuil
         # CDC de recall, cf. docs/ml_training_results.md, section "XGBoost : ajouté et écarté".
-        "XGBoost": {"recall": 0.711, "f1_macro": 0.520},
+        "XGBoost": {"recall": 0.603, "f1_macro": 0.563},
     },
 }
 

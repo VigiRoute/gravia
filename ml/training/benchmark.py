@@ -19,6 +19,15 @@ Encodage : LightGBM consomme les colonnes catégorielles nativement (`category` 
 les notebooks) ; régression logistique et Random Forest n'ont pas de support catégoriel natif en
 scikit-learn, elles passent par un `OneHotEncoder` dans un `ColumnTransformer`.
 
+Hyperparamètres : recherche aléatoire (`RandomizedSearchCV`, `N_SEARCH_ITER` essais par modèle,
+budget modeste choisi explicitement) validée par `TimeSeriesSplit` sur le train, pas un k-fold
+aléatoire classique — les données sont chronologiques (2019-2021), un k-fold mélangerait les
+années et validerait parfois sur du passé avec un modèle entraîné sur du futur. Appliquée aux
+4 familles, y compris celles jamais promues (cf. servabilité ci-dessous) : `register_best` bloque
+déjà toute promotion hors de `SERVABLE_MODELS`, donc tuner Random Forest/régression
+logistique/XGBoost ne risque pas de promouvoir un modèle non servable, ça donne juste une
+comparaison honnête entre familles à leur meilleur plutôt qu'à des réglages par défaut arbitraires.
+
 Sélection du meilleur modèle — priorité au recall (coût asymétrique d'un accident grave raté,
 cf. CDC) : parmi les modèles atteignant le seuil CDC recall >= 0,80 sur le test, celui avec le
 meilleur F1 macro ; si aucun ne l'atteint, celui au recall le plus élevé.
@@ -59,10 +68,12 @@ import pandas as pd
 import polars as pl
 import sqlalchemy as sa
 import xgboost as xgb
+from scipy.stats import loguniform, randint, uniform
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, recall_score
+from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
@@ -72,18 +83,24 @@ from ml.features.gold_features import (
     BASELINE_NUMERIC_COLUMNS,
     ENRICHED_FLAG_COLUMNS,
     LABEL_COLUMN,
+    YEAR_COLUMN,
     load_gold_features,
     prepare_features,
     split_train_valid_test,
 )
 
 RANDOM_STATE = 42
-N_ESTIMATORS = 300
-LEARNING_RATE = 0.05  # LightGBM et XGBoost (cf. notebooks/eda_baseline_baac.ipynb)
 
 #: Seuils CDC (cf. CLAUDE.md, seuils et métriques).
 TARGET_RECALL = 0.80
 MIN_F1_MACRO = 0.70
+
+#: Budget modeste (décision explicite de l'utilisateur, cf. AVANCEMENT_GRAVIA.md) : 15 essais par
+#: modèle, pas un grid search exhaustif. Random Forest à 300 arbres est déjà le plus lent des 4 à
+#: l'entraînement (cf. tests/integration/test_benchmark_mlflow.py) ; un budget plus large
+#: multiplierait ce coût par le nombre de folds de validation croisée.
+N_SEARCH_ITER = 15
+N_SEARCH_SPLITS = 3
 
 EXPERIMENT_NAME = "gravia-severity-classifier"
 REGISTERED_MODEL_NAME = "gravia-severity-classifier"
@@ -149,98 +166,83 @@ def calibrate_threshold(y_true: pd.Series, proba: np.ndarray, target_recall: flo
     return max(eligible) if eligible else thresholds[int(np.argmax(recalls))]
 
 
-def _fit_logistic_regression(
-    x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str], other: list[str]
-) -> Pipeline:
-    preprocessor = ColumnTransformer(
-        [("cat", OneHotEncoder(handle_unknown="ignore"), categorical)], remainder="passthrough"
-    )
-    model = Pipeline(
-        [
-            ("preprocess", preprocessor),
-            (
-                "classify",
-                LogisticRegression(
-                    class_weight="balanced", max_iter=1000, random_state=RANDOM_STATE
-                ),
-            ),
-        ]
-    )
-    model.fit(x_train, y_train)
-    return model
+def _base_estimator(
+    name: str, categorical: list[str], y_train: pd.Series
+) -> Pipeline | lgb.LGBMClassifier | xgb.XGBClassifier:
+    """Estimateur non ajusté par famille, avec seulement les paramètres structurels fixés.
+
+    Les hyperparamètres de la famille (capacité du modèle, régularisation) restent au défaut
+    scikit-learn/LightGBM/XGBoost ici : c'est `_search_hyperparameters` qui les fixe par
+    recherche aléatoire, pas cette fonction.
+    """
+    if name in ("logistic_regression", "random_forest"):
+        preprocessor = ColumnTransformer(
+            [("cat", OneHotEncoder(handle_unknown="ignore"), categorical)], remainder="passthrough"
+        )
+        classifier = (
+            LogisticRegression(class_weight="balanced", max_iter=1000, random_state=RANDOM_STATE)
+            if name == "logistic_regression"
+            else RandomForestClassifier(
+                class_weight="balanced", random_state=RANDOM_STATE, n_jobs=-1
+            )
+        )
+        return Pipeline([("preprocess", preprocessor), ("classify", classifier)])
+    if name == "lightgbm":
+        # Pas de `categorical_feature` explicite ici : les colonnes catégorielles sont déjà en
+        # dtype `category` pandas (cf. `_to_pandas`), que LightGBM détecte nativement en mode
+        # 'auto' (défaut), sans avoir besoin de le préciser à chaque appel de `.fit()` fait par
+        # `RandomizedSearchCV` en interne.
+        return lgb.LGBMClassifier(class_weight="balanced", random_state=RANDOM_STATE, verbosity=-1)
+    if name == "xgboost":
+        # scale_pos_weight = équivalent XGBoost de class_weight="balanced" (absent de son API) :
+        # ratio négatifs/positifs, pour rééquilibrer sans sur-échantillonner.
+        scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
+        model = xgb.XGBClassifier(
+            scale_pos_weight=scale_pos_weight,
+            enable_categorical=True,
+            tree_method="hist",
+            random_state=RANDOM_STATE,
+        )
+        # scikit-learn 1.9 a retiré l'attribut de classe `_estimator_type` de `ClassifierMixin`
+        # (remplacé par le système de tags `__sklearn_tags__`) ; XGBoost 3.0.5 s'appuie encore
+        # dessus dans `save_model()` (`mlflow.xgboost.log_model` en dépend) et lève `TypeError:
+        # _estimator_type undefined` sans ce contournement, constaté en testant.
+        model._estimator_type = "classifier"
+        return model
+    raise ValueError(f"modèle inconnu : {name!r}")
 
 
-def _fit_random_forest(
-    x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str], other: list[str]
-) -> Pipeline:
-    preprocessor = ColumnTransformer(
-        [("cat", OneHotEncoder(handle_unknown="ignore"), categorical)], remainder="passthrough"
-    )
-    model = Pipeline(
-        [
-            ("preprocess", preprocessor),
-            (
-                "classify",
-                RandomForestClassifier(
-                    n_estimators=N_ESTIMATORS,
-                    class_weight="balanced",
-                    random_state=RANDOM_STATE,
-                    n_jobs=-1,
-                ),
-            ),
-        ]
-    )
-    model.fit(x_train, y_train)
-    return model
-
-
-def _fit_lightgbm(
-    x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str], other: list[str]
-) -> lgb.LGBMClassifier:
-    model = lgb.LGBMClassifier(
-        n_estimators=N_ESTIMATORS,
-        learning_rate=LEARNING_RATE,
-        class_weight="balanced",
-        random_state=RANDOM_STATE,
-        verbosity=-1,
-    )
-    model.fit(x_train, y_train, categorical_feature=categorical)
-    return model
-
-
-def _fit_xgboost(
-    x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str], other: list[str]
-) -> xgb.XGBClassifier:
-    # scale_pos_weight = équivalent XGBoost de class_weight="balanced" (absent de son API) :
-    # ratio négatifs/positifs, pour rééquilibrer sans sur-échantillonner.
-    scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
-    model = xgb.XGBClassifier(
-        n_estimators=N_ESTIMATORS,
-        learning_rate=LEARNING_RATE,
-        scale_pos_weight=scale_pos_weight,
-        enable_categorical=True,
-        tree_method="hist",
-        random_state=RANDOM_STATE,
-    )
-    # scikit-learn 1.9 a retiré l'attribut de classe `_estimator_type` de `ClassifierMixin`
-    # (remplacé par le système de tags `__sklearn_tags__`) ; XGBoost 3.0.5 s'appuie encore
-    # dessus dans `save_model()` (`mlflow.xgboost.log_model` en dépend) et lève `TypeError:
-    # _estimator_type undefined` sans ce contournement, constaté en testant.
-    model._estimator_type = "classifier"
-    model.fit(x_train, y_train)
-    return model
-
-
-#: Un « builder » par famille de modèle : même signature `(x_train, y_train, categorical,
-#: other) -> estimateur ajusté`, exposant `.predict_proba` — assez uniforme pour un `evaluate_model`
-#: commun, sans forcer LightGBM dans le même `Pipeline` scikit-learn que les deux autres (son
-#: encodage catégoriel natif est fondamentalement différent d'un `OneHotEncoder`).
-MODEL_BUILDERS = {
-    "logistic_regression": _fit_logistic_regression,
-    "random_forest": _fit_random_forest,
-    "lightgbm": _fit_lightgbm,
-    "xgboost": _fit_xgboost,
+#: Espace de recherche par famille. Clés préfixées `classify__` pour les deux modèles encapsulés
+#: dans un `Pipeline` scikit-learn (cf. `_base_estimator`), noms d'attributs directs pour LightGBM
+#: et XGBoost.
+_PARAM_DISTRIBUTIONS: dict[str, dict[str, Any]] = {
+    "logistic_regression": {
+        "classify__C": loguniform(1e-3, 1e2),
+    },
+    "random_forest": {
+        "classify__n_estimators": randint(100, 400),
+        "classify__max_depth": randint(4, 30),
+        "classify__min_samples_leaf": randint(1, 20),
+        "classify__max_features": ["sqrt", "log2", None],
+    },
+    "lightgbm": {
+        "n_estimators": randint(100, 500),
+        "learning_rate": loguniform(0.01, 0.2),
+        "num_leaves": randint(15, 127),
+        "max_depth": randint(3, 15),
+        "min_child_samples": randint(5, 100),
+    },
+    "xgboost": {
+        "n_estimators": randint(100, 500),
+        "learning_rate": loguniform(0.01, 0.2),
+        "max_depth": randint(3, 12),
+        "min_child_weight": randint(1, 10),
+        "subsample": uniform(0.6, 0.4),  # borne haute exclusive : tire dans [0.6, 1.0)
+    },
 }
+
+#: Familles de modèles comparées, dans l'ordre où elles sont entraînées/loggées dans MLflow.
+MODEL_NAMES: tuple[str, ...] = ("logistic_regression", "random_forest", "lightgbm", "xgboost")
 
 _MLFLOW_LOG_MODEL = {
     "logistic_regression": mlflow.sklearn.log_model,
@@ -248,6 +250,47 @@ _MLFLOW_LOG_MODEL = {
     "lightgbm": mlflow.lightgbm.log_model,
     "xgboost": mlflow.xgboost.log_model,
 }
+
+
+def _search_hyperparameters(
+    name: str, x_train: pd.DataFrame, y_train: pd.Series, categorical: list[str]
+) -> tuple[Any, dict[str, Any]]:
+    """Recherche aléatoire d'hyperparamètres, validée par split temporel, pas un k-fold aléatoire.
+
+    `x_train`/`y_train` doivent déjà être triés chronologiquement (cf. `run_benchmark`) :
+    `TimeSeriesSplit` découpe des blocs contigus par position de ligne, pas par valeur de date —
+    un ordre aléatoire romprait la logique anti-fuite (validerait parfois sur du passé avec un
+    modèle entraîné sur du futur).
+
+    Args:
+        name: Clé de `MODEL_NAMES`.
+        x_train, y_train: Entraînement (2019-2021), trié chronologiquement.
+        categorical: Colonnes catégorielles (pour construire l'estimateur de base).
+
+    Returns:
+        `(meilleur_estimateur_déjà_ajusté, meilleurs_hyperparamètres)`.
+    """
+    base = _base_estimator(name, categorical, y_train)
+    search = RandomizedSearchCV(
+        base,
+        _PARAM_DISTRIBUTIONS[name],
+        n_iter=N_SEARCH_ITER,
+        scoring="average_precision",  # indépendant du seuil, recalibré séparément après coup
+        cv=TimeSeriesSplit(n_splits=N_SEARCH_SPLITS),
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
+    )
+    search.fit(x_train, y_train)
+    best_estimator = search.best_estimator_
+    if name == "xgboost":
+        # `RandomizedSearchCV` reconstruit l'estimateur final par `clone()` + refit interne ;
+        # `clone()` ne recopie que les paramètres du constructeur, pas les attributs d'instance
+        # ajoutés après coup (constaté en testant : `best_estimator_` perdait le contournement
+        # posé dans `_base_estimator`, faisant réapparaître `TypeError: _estimator_type
+        # undefined` au moment du `mlflow.xgboost.log_model` qui suit). Reposé ici, sur l'objet
+        # réellement retourné par la recherche.
+        best_estimator._estimator_type = "classifier"
+    return best_estimator, search.best_params_
 
 
 def evaluate_model(
@@ -265,9 +308,9 @@ def evaluate_model(
     """Entraîne un modèle, calibre son seuil sur la validation, évalue sur le test, log dans MLflow.
 
     Args:
-        name: Clé de `MODEL_BUILDERS`.
+        name: Clé de `MODEL_NAMES`.
         feature_set: Configuration de features utilisée (traçabilité du run MLflow).
-        x_train, y_train: Entraînement (2019-2021).
+        x_train, y_train: Entraînement (2019-2021), trié chronologiquement (cf. `run_benchmark`).
         x_valid, y_valid: Validation (2022) — sert uniquement à calibrer le seuil.
         x_test, y_test: Test (2023) — holdout, jamais vu avant l'évaluation finale.
         categorical: Colonnes catégorielles.
@@ -278,18 +321,19 @@ def evaluate_model(
         franchis.
     """
     with mlflow.start_run(run_name=f"{name}-{feature_set}") as run:
+        model, best_params = _search_hyperparameters(name, x_train, y_train, categorical)
+
         mlflow.log_params(
             {
                 "model": name,
                 "feature_set": feature_set,
                 "n_features": len(categorical) + len(other),
-                "n_estimators": N_ESTIMATORS,
+                "n_search_iter": N_SEARCH_ITER,
                 "target_recall": TARGET_RECALL,
                 "random_state": RANDOM_STATE,
+                **best_params,
             }
         )
-
-        model = MODEL_BUILDERS[name](x_train, y_train, categorical, other)
 
         proba_valid = model.predict_proba(x_valid)[:, 1]
         threshold = calibrate_threshold(y_valid, proba_valid, TARGET_RECALL)
@@ -340,7 +384,7 @@ def select_best(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def run_benchmark(engine: sa.Engine, feature_set: FeatureSet = "baseline") -> list[dict[str, Any]]:
-    """Entraîne et évalue les 3 familles de modèles, chacune trackée comme un run MLflow.
+    """Entraîne et évalue les 4 familles de modèles, chacune trackée comme un run MLflow.
 
     Args:
         engine: Connexion SQLAlchemy vers PostgreSQL (Gold).
@@ -353,6 +397,11 @@ def run_benchmark(engine: sa.Engine, feature_set: FeatureSet = "baseline") -> li
     categorical, other = feature_columns(feature_set)
     df = prepare_features(load_gold_features(engine))
     train, valid, test = split_train_valid_test(df)
+    # Ordre chronologique requis par `TimeSeriesSplit` dans `_search_hyperparameters` : `train`
+    # n'est pas garanti trié en sortie de `load_gold_features` (ordre de la requête SQL, pas de
+    # l'accident). `annee` seule suffirait à éviter la fuite ; `mois`/`jour_semaine` affinent
+    # l'ordre à l'intérieur d'une même année sans coût supplémentaire.
+    train = train.sort([YEAR_COLUMN, "mois", "jour_semaine"])
 
     x_train = _to_pandas(train, categorical, other)
     x_valid = _to_pandas(valid, categorical, other)
@@ -376,7 +425,7 @@ def run_benchmark(engine: sa.Engine, feature_set: FeatureSet = "baseline") -> li
             categorical,
             other,
         )
-        for name in MODEL_BUILDERS
+        for name in MODEL_NAMES
     ]
 
 
@@ -453,7 +502,8 @@ def main() -> None:
 
     print(
         f"Entraînement (train 2019-2021 / validation 2022 / test 2023, "
-        f"config={args.feature_set})..."
+        f"config={args.feature_set}, recherche d'hyperparamètres : {N_SEARCH_ITER} essais "
+        f"par modèle)..."
     )
     results = run_benchmark(engine, feature_set=args.feature_set)
 

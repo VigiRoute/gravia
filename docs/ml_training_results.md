@@ -35,24 +35,55 @@ comparaison, rechargeable explicitement via `models:/gravia-severity-classifier/
 Flags véhicule/usager (`flag_2roues_motorise`/`flag_poids_lourd`/`flag_velo_edp`/`flag_pieton`),
 meilleure configuration déjà repérée dans `notebooks/eval_enrichissement_vs_seuil.ipynb` (config C :
 recall 0,805 / F1 macro 0,727 avec un seuil unique). Même protocole, désormais 4 modèles (XGBoost
-ajouté le 2026-09-20, cf. « XGBoost : ajouté et écarté » ci-dessous) :
+ajouté le 2026-09-20, cf. « XGBoost : ajouté et écarté » ci-dessous), chacun avec ses
+hyperparamètres réglés par recherche aléatoire plutôt qu'à des valeurs fixes (cf. « Recherche
+d'hyperparamètres » ci-dessous) :
 
 | Modèle | Recall grave | F1 macro | Seuil calibré | Seuils CDC |
 |---|---|---|---|---|
-| Régression logistique | 0,806 | 0,708 | 0,45 | Atteints |
-| Random Forest | 0,810 | 0,711 | 0,39 | Atteints |
-| **LightGBM** | 0,807 | **0,727** | 0,47 | **Atteints** |
-| XGBoost | 0,711 | 0,520 | 0,43 | Non atteints (recall < 0,80) |
+| Régression logistique | 0,807 | 0,708 | 0,45 | Atteints |
+| Random Forest | 0,813 | 0,712 | 0,44 | Atteints |
+| **LightGBM** | 0,808 | **0,726** | 0,47 | **Atteints** |
+| XGBoost | 0,603 | 0,563 | 0,49 | Non atteints (recall < 0,80) |
 
-→ **LightGBM reste le meilleur modèle**, seul candidat au-dessus de 0,72 de F1 macro et le seul
-avec XGBoost à ne jamais franchir les deux seuils. L'enrichissement seul (sans calibration par
-département) apporte un vrai gain de F1 macro par rapport au baseline (0,707/0,708 → 0,727) sans
-coût sur le recall, pour les trois modèles qui le franchissent. **Meilleur modèle du benchmark
-toutes configurations confondues, promu à l'alias `staging`** (`gravia-severity-classifier` v2,
-2026-08-27, décision explicite de l'utilisateur ; réentraîné et re-promu en v4 le 2026-09-20 lors
-de l'ajout de XGBoost au comparatif, même architecture/hyperparamètres, poids légèrement
-différents). Rechargé après promotion et revérifié :
+→ **LightGBM reste le meilleur modèle**, seul candidat au-dessus de 0,72 de F1 macro. L'enrichissement
+seul (sans calibration par département) apporte un vrai gain de F1 macro par rapport au baseline
+(0,707/0,708 → 0,726) sans coût sur le recall, pour les trois modèles qui le franchissent.
+**Meilleur modèle du benchmark toutes configurations confondues, promu à l'alias `staging`**
+(`gravia-severity-classifier` v2, 2026-08-27, décision explicite de l'utilisateur ; réentraîné et
+re-promu en v4 le 2026-09-20 lors de l'ajout de XGBoost au comparatif, puis en v5 le 2026-09-21 lors
+de l'ajout de la recherche d'hyperparamètres, performance quasi inchangée les deux fois). Rechargé
+après promotion et revérifié :
 `mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
+
+### Recherche d'hyperparamètres (2026-09-21)
+
+Jusqu'ici les 4 modèles utilisaient des hyperparamètres fixes et identiques entre eux
+(`n_estimators=300`, `learning_rate=0,05`), choisis pour comparer les familles à réglages
+équivalents, pas pour chercher l'optimum de chacune. Ajoutée sur demande explicite pour vérifier
+qu'aucun modèle ne restait écarté à tort faute de réglage : `RandomizedSearchCV` (15 essais par
+modèle, budget modeste choisi explicitement, pas un grid search exhaustif), validé par
+`TimeSeriesSplit` sur le train (2019-2021) plutôt qu'un k-fold aléatoire classique, qui mélangerait
+les années et validerait parfois sur du passé avec un modèle entraîné sur du futur. Scoring de la
+recherche : `average_precision` (indépendant du seuil, puisque le seuil de décision est de toute
+façon recalibré séparément après coup sur la validation 2022, comme avant). Appliquée aux 4
+familles, y compris celles jamais promues : `register_best` bloque déjà toute promotion hors de
+`SERVABLE_MODELS` (seul LightGBM), tuner les 3 autres ne pouvait donc pas casser le serving, juste
+donner une comparaison honnête plutôt qu'à des réglages par défaut arbitraires.
+
+Résultat : **le tuning ne change ni le modèle retenu ni sa performance de façon notable**
+(LightGBM : recall 0,807 → 0,808, F1 macro 0,727 → 0,726, différence dans le bruit) — les réglages
+par défaut utilisés jusqu'ici étaient déjà proches de l'optimum pour ce modèle sur ce protocole.
+Seul XGBoost change nettement (recall 0,711 → 0,603, F1 macro 0,520 → 0,563) : reste sous le seuil
+CDC de recall dans les deux cas, la conclusion (écarté) ne change pas.
+
+Un vrai bug trouvé en implémentant : `RandomizedSearchCV` reconstruit son estimateur final par
+`clone()` puis refit interne, qui ne recopie que les paramètres du constructeur, pas les attributs
+d'instance ajoutés après coup — le contournement `model._estimator_type = "classifier"` pour
+XGBoost (cf. « XGBoost : ajouté et écarté » ci-dessous) disparaissait donc de `best_estimator_`,
+faisant réapparaître `TypeError: _estimator_type undefined` au moment de `mlflow.xgboost.log_model`.
+Corrigé en réappliquant l'attribut sur `best_estimator_` une fois la recherche terminée
+(`ml/training/benchmark.py::_search_hyperparameters`).
 
 ### XGBoost : ajouté et écarté (2026-09-20)
 
