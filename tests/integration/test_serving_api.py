@@ -8,6 +8,9 @@ n'est pas d'entraîner quoi que ce soit ici (rapide : un seul chargement de mod�
 
 from __future__ import annotations
 
+import json
+import logging
+
 import pytest
 import sqlalchemy as sa
 
@@ -69,6 +72,27 @@ def test_predict_severity_returns_estimation_with_explanation(client) -> None:
     for contribution in body["top_contributions"]:
         assert "feature" in contribution
         assert isinstance(contribution["contribution"], float)
+
+
+def test_predict_severity_logs_a_structured_json_prediction_record(client, caplog) -> None:
+    """EF-7 (cf. ml/serving/api.py, docstring module) : la prédiction est journalisée en JSON
+    structuré, pas en texte libre — vérifié ici sur le vrai logger configuré par le module, pas
+    seulement sur le formatter en isolation (cf. tests/unit/test_serving_api_logging.py)."""
+    from ml.serving.api import JsonFormatter
+
+    with caplog.at_level(logging.INFO, logger="gravia.serving"):
+        client.post("/v1/predict-severity", json=_VALID_PAYLOAD)
+
+    prediction_records = [r for r in caplog.records if getattr(r, "event", None) == "prediction"]
+    assert len(prediction_records) == 1
+    record = prediction_records[0]
+    assert record.departement == _VALID_PAYLOAD["departement"]
+    assert record.gravite_predite in {"grave", "non_grave"}
+    assert 0.0 <= record.probabilite <= 1.0
+
+    payload = json.loads(JsonFormatter().format(record))
+    assert payload["event"] == "prediction"
+    assert payload["departement"] == _VALID_PAYLOAD["departement"]
 
 
 def test_predict_severity_rejects_missing_required_field(client) -> None:
