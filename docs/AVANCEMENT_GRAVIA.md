@@ -6,7 +6,22 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
+**Dernière mise à jour :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
+(EF-7, `ml/serving/api.py`), sur demande explicite après une relecture des docs en retard : les
+deux logs du serving (`modele_charge`, `prediction`) utilisaient encore l'interpolation `%s` dans
+un message texte, pas des champs nommés — interrogeable seulement au regex, pas au `jq` ni par un
+futur agrégateur de logs (Loki, CloudWatch Logs Insights). Nouveau `JsonFormatter` (une ligne =
+un objet JSON, champs standards + `extra={...}` passé à `logger.info`), remplace le formatter
+texte de `logging.basicConfig`. Portée volontairement limitée à la journalisation : toujours pas
+de stockage persistant/interrogeable (table dédiée), décision déjà actée (cf. entrée du
+2026-09-13), pas remise en cause ici. **Vérifié en conteneur réel** (pas seulement `TestClient`) :
+image reconstruite, requête réelle envoyée, ligne de log inspectée dans `docker logs` — JSON
+valide avec les champs attendus (`event`, `departement`, `gravite_predite`, `probabilite`,
+`seuil_decision`, `modele_version`) ; les logs d'accès uvicorn (loggers séparés, non affectés)
+restent inchangés. 4 tests ajoutés (3 unitaires sur le formatter en isolation, 1 d'intégration
+sur la vraie ligne de log émise par l'API).
+
+**Mise à jour précédente :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
 alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
 provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
 d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
@@ -22,7 +37,7 @@ tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` 
 Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
 positif).
 
-**Mise à jour précédente :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
+**Mise à jour d'avant :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
 (`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
 à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
 explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
@@ -37,7 +52,7 @@ bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estima
 XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
 réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
 
-**Mise à jour d'avant :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+**Mise à jour antérieure :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
 benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
 justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
 section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
@@ -48,7 +63,7 @@ occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/se
 sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
 puisse pas casser le serving en production si un autre framework l'emportait un jour.
 
-**Mise à jour antérieure :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
+**Mise à jour plus ancienne :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
 vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
 pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
 reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
@@ -242,9 +257,9 @@ CDC sur les deux dépôts.
   (`lifespan`), pas à chaque requête. Réponse conforme à EF-4/EC-8 : probabilité + décision
   binaire au seuil calibré (récupéré depuis les métriques du run MLflow associé, pas recalculé)
   + explication SHAP (`shap.TreeExplainer`, top 5 contributions). `GET /health` pour le
-  healthcheck Docker. Journalisation des prédictions (EF-7) en logs structurés, pas encore un
-  stockage persistant/interrogeable. Le endpoint **assiste, ne décide pas** (EC-7,
-  human-in-the-loop) : aucune action de dispatching déclenchée.
+  healthcheck Docker. Journalisation des prédictions (EF-7) en JSON structuré (2026-09-21, cf.
+  entrée « Dernière mise à jour »), pas encore un stockage persistant/interrogeable. Le endpoint
+  **assiste, ne décide pas** (EC-7, human-in-the-loop) : aucune action de dispatching déclenchée.
   **Vérifié en conteneur réel** (`docker compose build/up serving`, pas seulement `TestClient`) :
   `/health` et `/v1/predict-severity` répondent correctement, prédiction cohérente avec le
   domaine (impliquer un 2-roues pousse vers « grave », `departement` reste la feature la plus

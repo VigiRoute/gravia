@@ -152,7 +152,7 @@ Cet arbitrage suit le même raisonnement déjà posé pour justifier Kafka en pr
 | EF-4 | Le modèle renvoie un **score de confiance** et une **explication** (contributions des variables, SHAP). |
 | EF-5 | Une **API REST** expose la prédiction en temps réel (`POST /v1/predict-severity`). |
 | EF-6 | Le système réentraîne le modèle sur nouveau millésime ou sur détection de dérive. **Déclencheur réel implémenté** : `workflow_dispatch` manuel + filet de sécurité calendaire trimestriel (`gravia/.github/workflows/retrain.yml`) ; le déclenchement événementiel réel (nouveau millésime publié, dérive détectée par `ml/monitoring/drift.py`) reste manuel à ce jour, pas encore câblé automatiquement. |
-| EF-7 | Le système journalise les prédictions pour audit et traçabilité. |
+| EF-7 | Le système journalise les prédictions pour audit et traçabilité. **Réalisé en JSON structuré** (`ml/serving/api.py::JsonFormatter`, 2026-09-21) : une ligne = un objet JSON (probabilité, décision, seuil, version du modèle), interrogeable par `jq`/`grep -P` ou un futur agrégateur de logs, pas du texte libre. Pas encore de stockage persistant/interrogeable (table dédiée) : hors périmètre décidé pour ce premier serving. |
 
 ---
 

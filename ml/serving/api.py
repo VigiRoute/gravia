@@ -6,9 +6,11 @@ le CDC (ENF-1). `GET /health` expose l'état du chargement pour le healthcheck D
 
 Journalisation (CDC_GRAVIA.md, EF-7 — « le système journalise les prédictions pour audit et
 traçabilité ») : chaque prédiction est journalisée (logger `gravia.serving`, niveau INFO) avec la
-probabilité, la décision et le seuil utilisé. Une trace de niveau requête HTTP, pas encore un
-stockage persistant et interrogeable (table dédiée, etc.) — au-delà du périmètre de ce premier
-serving, à réévaluer si l'audit doit être requêtable après coup.
+probabilité, la décision et le seuil utilisé, **en JSON structuré** (une ligne = un objet, champs
+nommés), pas en texte libre à parser au regex — interrogeable par `jq`/`grep -P` ou par un futur
+agrégateur de logs (Loki, CloudWatch Logs Insights) sans adaptation. Une trace de niveau requête
+HTTP, pas encore un stockage persistant et indexé (table dédiée, etc.) — au-delà du périmètre de
+ce premier serving, à réévaluer si l'audit doit être requêtable après coup.
 
 Ce endpoint **assiste**, ne décide pas (CDC_GRAVIA.md, EC-7, human-in-the-loop) : la réponse est
 une estimation destinée à l'opérateur, ce endpoint ne déclenche aucune action de dispatching.
@@ -16,9 +18,11 @@ une estimation destinée à l'opérateur, ce endpoint ne déclenche aucune actio
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 import mlflow
 from fastapi import FastAPI, HTTPException
@@ -30,12 +34,42 @@ from ml.serving.model import LoadedModel, load_staged_model, predict_severity
 from ml.serving.schemas import PredictSeverityRequest, PredictSeverityResponse
 from ml.training.benchmark import REGISTERED_MODEL_NAME
 
+#: Champs déjà présents sur tout `LogRecord` standard (calculé dynamiquement plutôt que recopié à
+#: la main : couvre les champs propres à la version de Python en place, ex. `taskName` en 3.12).
+#: Sert à isoler dans `JsonFormatter` les seuls champs ajoutés via `logger.info(..., extra=...)`.
+_STANDARD_LOG_RECORD_FIELDS = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__)
+
+
+class JsonFormatter(logging.Formatter):
+    """Une ligne de log = un objet JSON, pas du texte libre à parser au regex (EF-7, cf. docstring
+    module) : `extra={...}` passé à `logger.info` devient des champs du JSON, pas une chaîne
+    interpolée dans le message.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        extra = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _STANDARD_LOG_RECORD_FIELDS
+        }
+        payload.update(extra)
+        return json.dumps(payload, ensure_ascii=False)
+
+
 # Sans ceci, le logger reste à son niveau effectif par défaut (WARNING, hérité de la racine
 # sans handler) et les logger.info() ci-dessous n'émettent jamais rien — constaté en audit sur
 # le conteneur réel : une prédiction ne produisait que la ligne d'accès uvicorn, jamais la ligne
 # "prédiction ...". uvicorn configure ses propres loggers nommés (uvicorn.error/access) sans
 # toucher à celui-ci.
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+_handler = logging.StreamHandler()
+_handler.setFormatter(JsonFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger("gravia.serving")
 
 _state: dict[str, LoadedModel] = {}
@@ -56,10 +90,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     _state["model"] = load_staged_model()
     logger.info(
-        "Modèle chargé : %s v%s (seuil=%.2f)",
-        REGISTERED_MODEL_NAME,
-        _state["model"].version,
-        _state["model"].threshold,
+        "modele_charge",
+        extra={
+            "event": "model_loaded",
+            "modele": REGISTERED_MODEL_NAME,
+            "modele_version": _state["model"].version,
+            "seuil": _state["model"].threshold,
+        },
     )
     yield
     _state.clear()
@@ -140,11 +177,14 @@ def predict(request: PredictSeverityRequest) -> PredictSeverityResponse:
 
     response = predict_severity(model, request)
     logger.info(
-        "prédiction departement=%s gravite=%s probabilite=%.3f seuil=%.2f modele_version=%s",
-        request.departement,
-        response.gravite_predite,
-        response.probabilite,
-        response.seuil_decision,
-        response.modele_version,
+        "prediction",
+        extra={
+            "event": "prediction",
+            "departement": request.departement,
+            "gravite_predite": response.gravite_predite,
+            "probabilite": response.probabilite,
+            "seuil_decision": response.seuil_decision,
+            "modele_version": response.modele_version,
+        },
     )
     return response
