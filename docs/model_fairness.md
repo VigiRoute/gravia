@@ -33,19 +33,24 @@ Deux métriques par sous-groupe :
   exigence retranscrite. Les écarts sont documentés pour arbitrage, à l'image de l'angle mort
   déjà documenté du seuil unique par département ([CDC_GRAVIA.md §13.7](CDC_GRAVIA.md)).
 
-## Résultats (2026-09-13, test 2023, 20 830 accidents à conducteur unique)
+## Résultats (2026-09-21, test 2023, 20 830 accidents à conducteur unique)
+
+> Recalculé le 2026-09-21 contre `gravia-severity-classifier` v5 (recherche d'hyperparamètres,
+> cf. [ml_training_results.md](ml_training_results.md)) : les chiffres ci-dessous ont légèrement
+> bougé par rapport à la version précédente du modèle (v2, audité le 2026-09-13), pas seulement du
+> bruit d'arrondi pour la tranche d'âge (cf. écarts ci-dessous). Conclusions inchangées.
 
 ### Par sexe du conducteur
 
 | Sexe | n | Taux grave réel | Taux prédit grave | Rappel (TPR) | FPR |
 |---|---:|---:|---:|---:|---:|
-| Femme | 4 884 | 0,381 | 0,597 | 0,873 | 0,427 |
-| Homme | 15 259 | 0,479 | 0,648 | 0,866 | 0,446 |
+| Femme | 4 884 | 0,381 | 0,598 | 0,874 | 0,428 |
+| Homme | 15 259 | 0,479 | 0,649 | 0,868 | 0,447 |
 
 *Effectifs (4 884 + 15 259 = 20 143) inférieurs aux 20 830 accidents à conducteur unique : 687
 conducteurs au sexe non renseigné (`sexe = -1`) sont exclus de ce tableau.*
 
-**Écart de rappel : 0,007 · Écart de FPR : 0,019** : parité quasi parfaite entre sexes sur les
+**Écart de rappel : 0,006 · Écart de FPR : 0,018** : parité quasi parfaite entre sexes sur les
 deux métriques d'*equalized odds*. Le taux de gravité réelle diffère (hommes plus impliqués dans
 des accidents graves, cohérent avec les statistiques de sécurité routière connues), mais le
 modèle ne traite pas les deux groupes différemment à gravité égale.
@@ -54,25 +59,27 @@ modèle ne traite pas les deux groupes différemment à gravité égale.
 
 | Tranche d'âge | n | Taux grave réel | Taux prédit grave | Rappel (TPR) | FPR |
 |---|---:|---:|---:|---:|---:|
-| 0-17 | 677 | 0,464 | 0,730 | 0,898 | **0,584** |
-| 18-24 | 4 415 | 0,452 | 0,648 | 0,874 | 0,463 |
-| 25-34 | 4 210 | 0,416 | 0,585 | 0,854 | **0,393** |
-| 35-49 | 4 471 | 0,428 | 0,613 | 0,859 | 0,428 |
-| 50-64 | 3 605 | 0,479 | 0,642 | 0,870 | 0,432 |
-| 65+ | 2 717 | 0,539 | 0,705 | 0,880 | 0,500 |
+| 0-17 | 677 | 0,464 | 0,740 | 0,908 | **0,595** |
+| 18-24 | 4 415 | 0,452 | 0,652 | 0,875 | 0,469 |
+| 25-34 | 4 210 | 0,416 | 0,584 | 0,854 | **0,392** |
+| 35-49 | 4 471 | 0,428 | 0,613 | 0,859 | 0,429 |
+| 50-64 | 3 605 | 0,479 | 0,640 | 0,868 | 0,430 |
+| 65+ | 2 717 | 0,539 | 0,705 | 0,887 | 0,493 |
 
 *Effectifs (677+4 415+4 210+4 471+3 605+2 717 = 20 095) inférieurs aux 20 830 accidents à
 conducteur unique : 735 conducteurs à tranche d'âge inconnue (`tranche_age = "Inconnu"`, âge
 manquant ou aberrant) sont exclus de ce tableau.*
 
-**Écart de rappel : 0,044 · Écart de FPR : 0,191.**
+**Écart de rappel : 0,054 · Écart de FPR : 0,203.** Les deux écarts se sont légèrement creusés
+par rapport à la version précédente du modèle (rappel : 0,044 → 0,054 ; FPR : 0,191 → 0,203) —
+mouvement réel du nouveau modèle, pas du bruit (cf. note ci-dessus).
 
-Le rappel reste relativement homogène (0,854 à 0,898). **La disparité se concentre sur le taux
-de faux positifs** : les conducteurs mineurs (0-17, FPR = 0,584) et seniors (65+, FPR = 0,500)
-sont significativement plus souvent classés « grave » à tort que les 25-34 ans (FPR = 0,393),
-soit un écart de 19 points de pourcentage. Autrement dit, **parmi les accidents réellement non
-graves**, le modèle sur-signale les jeunes et les seniors comme graves près d'une fois sur deux,
-contre une fois sur quatre pour les 25-34 ans.
+Le rappel reste relativement homogène (0,854 à 0,908). **La disparité se concentre sur le taux
+de faux positifs** : les conducteurs mineurs (0-17, FPR = 0,595) et seniors (65+, FPR = 0,493)
+sont significativement plus souvent classés « grave » à tort que les 25-34 ans (FPR = 0,392),
+soit un écart de 20 points de pourcentage. Autrement dit, **parmi les accidents réellement non
+graves**, le modèle sur-signale les jeunes comme graves près de trois fois sur cinq, contre deux
+fois sur cinq pour les 25-34 ans.
 
 ![Rappel et FPR par sexe et par tranche d'âge du conducteur](img/fairness_gaps.png)
 
