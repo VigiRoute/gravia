@@ -1,0 +1,116 @@
+# Règles d'alerte provisionnées automatiquement au démarrage de Grafana (même principe que la
+# source de données et le dashboard provisionnés à côté) : pas de configuration manuelle à
+# refaire à chaque recréation du conteneur. Les seuils visibles sur le dashboard
+# (serving-latency.json, panels 3 et 4) deviennent ici des alertes évaluées en continu, pas
+# seulement des couleurs à surveiller à l'œil.
+#
+# Pas de canal de notification externe câblé (email/Slack/PagerDuty) : la stack dev n'a pas de
+# relais SMTP ni de webhook réel à joindre, et en inventer un factice serait trompeur. Les règles
+# utilisent donc la politique de notification par défaut de Grafana (contact point
+# "grafana-default-email", non fonctionnel sans SMTP configuré) : l'état Normal/Pending/Firing de
+# chaque règle reste vérifiable dans Alerting > Alert rules, ce qui suffit à démontrer la capacité
+# de détection. Câbler un vrai canal de notification est une décision de configuration prod (cf.
+# CLAUDE.md, "Deux environnements"), pas un manque ici.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: gravia-serving-alerts
+    folder: GRAVIA
+    interval: 1m
+    rules:
+      - uid: gravia-latency-p95
+        title: "Latence p95 /v1/predict-severity au-dessus du seuil CDC ENF-1 (300 ms)"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: >-
+                histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler="/v1/predict-severity"}[5m])) by (le))
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              refId: B
+              type: classic_conditions
+              conditions:
+                - evaluator: { type: gt, params: [0.3] }
+                  operator: { type: and }
+                  query: { params: ["A"] }
+                  reducer: { type: last, params: [] }
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 au-dessus de 300 ms depuis 5 min (cf. CDC_GRAVIA.md §11, ENF-1)"
+
+      - uid: gravia-error-rate
+        title: "Taux d'erreur (non-2xx) de l'API au-dessus de 1 %"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              # Seuil opérationnel du dashboard (serving-latency.json, panel 4), pas un chiffre
+              # imposé par le CDC (qui ne fixe pas de seuil de taux d'erreur, seulement latence
+              # ENF-1 et disponibilité ENF-2).
+              #
+              # `or vector(0)` sur le numérateur : constaté en testant, sans lui la requête
+              # renvoie un vecteur Prometheus *vide* (pas 0) tant qu'aucune erreur n'est jamais
+              # survenue — la division disparaît alors entièrement au lieu de valoir 0, ce qui
+              # déclenchait à tort du NoData (donc Pending/Firing selon noDataState) au lieu de
+              # Normal sur du trafic parfaitement sain. Avec le fallback, seule une absence totale
+              # de trafic (dénominateur vide) reste un vrai NoData, ce qui est correct.
+              expr: >-
+                (sum(rate(http_requests_total{status!~"2.."}[5m])) or vector(0)) / sum(rate(http_requests_total[5m]))
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              refId: B
+              type: classic_conditions
+              conditions:
+                - evaluator: { type: gt, params: [0.01] }
+                  operator: { type: and }
+                  query: { params: ["A"] }
+                  reducer: { type: last, params: [] }
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taux d'erreur au-dessus de 1 % depuis 5 min"
+
+      - uid: gravia-api-down
+        title: "Cible Prometheus gravia-api injoignable"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 60, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: up{job="gravia-api"}
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              refId: B
+              type: classic_conditions
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+                  operator: { type: and }
+                  query: { params: ["A"] }
+                  reducer: { type: last, params: [] }
+        for: 1m
+        noDataState: Alerting
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus ne parvient plus à scraper l'API (proxy de disponibilité, cf. CDC_GRAVIA.md §11, ENF-2)"
