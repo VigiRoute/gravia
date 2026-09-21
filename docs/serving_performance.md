@@ -71,7 +71,9 @@ Question distincte : le benchmark de `ml/training` compare recall/F1, pas la vit
 moins bon aurait pu rester pertinent s'il était nettement plus rapide.
 [`tests/performance/compare_model_latency.py`](../tests/performance/compare_model_latency.py)
 mesure le coût de calcul du modèle seul (sans HTTP, une prédiction à la fois, comme le fait
-l'API à chaque requête) pour les 3 candidats du benchmark (config `"enriched"`) :
+l'API à chaque requête) pour 3 des 4 candidats du benchmark (config `"enriched"`) : XGBoost n'y
+figure pas, jamais retenu (sous le seuil CDC, cf. [ml_training_results.md](ml_training_results.md)),
+donc sans intérêt pour une décision de déploiement.
 
 | Modèle | predict p50 | predict p95 | Recall / F1 macro |
 |---|---:|---:|---|
