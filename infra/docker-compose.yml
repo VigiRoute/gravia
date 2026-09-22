@@ -132,6 +132,10 @@ services:
     restart: unless-stopped
     ports:
       - "8081:8080"
+    volumes:
+      # Adminer charge automatiquement adminer.css s'il le trouve à côté de son index.php,
+      # aucune configuration PHP nécessaire.
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
     depends_on:
       postgres:
         condition: service_healthy
