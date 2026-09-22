@@ -6,7 +6,20 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
+**Dernière mise à jour :** 2026-09-22. Correctif Prometheus multiprocess
+(`infra/serving/Dockerfile`), trouvé en préparant la démo : le panel Grafana « Total requêtes
+/v1/predict-severity » retombait de façon non monotone (ex. 15 → 2, vérifié via l'API range de
+Prometheus) alors que le conteneur n'avait jamais redémarré (`RestartCount=0`). Cause réelle : les
+4 workers uvicorn sont des processus séparés, chacun avec son propre compteur en mémoire — sans
+`PROMETHEUS_MULTIPROC_DIR`, chaque scrape ne voyait que le worker sur lequel elle tombait, pas le
+vrai total agrégé. `prometheus_fastapi_instrumentator` détecte déjà cette variable et agrège
+automatiquement à l'exposition de `/metrics` (aucun changement côté `ml/serving/api.py`) ; le
+dossier est recréé vide dans le `CMD` (pas seulement à la construction de l'image), pour qu'un
+`docker restart` ne mélange pas d'anciens fichiers de PID recyclés. **Vérifié en conteneur réel** :
+40 requêtes concurrentes → compteur agrégé à 40 (4 fichiers `counter_<pid>.db`, un par worker),
+puis incréments séquentiels 41/42/43 sans régression.
+
+**Mise à jour précédente :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
 montée sur `GET /demo` par `ml/serving/api.py`), sur demande explicite pour une présentation à
 l'oral : formulaire pré-rempli qui appelle `POST /v1/predict-severity` en JavaScript, affiche le
 verdict, la jauge de probabilité avec le seuil, et les contributions SHAP. Montée sur la même
@@ -26,7 +39,7 @@ directement le modèle `@staging` via `ml.serving.model`, même chemin de code q
 modèle dédié comme `eval_seuil_par_zone.ipynb`. Ne change rien au modèle déployé : sert
 d'argument de présentation, pas un correctif appliqué dans l'urgence.
 
-**Mise à jour précédente :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
+**Mise à jour d'avant :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
 (EF-7, `ml/serving/api.py`), sur demande explicite après une relecture des docs en retard : les
 deux logs du serving (`modele_charge`, `prediction`) utilisaient encore l'interpolation `%s` dans
 un message texte, pas des champs nommés — interrogeable seulement au regex, pas au `jq` ni par un
@@ -41,7 +54,7 @@ valide avec les champs attendus (`event`, `departement`, `gravite_predite`, `pro
 restent inchangés. 4 tests ajoutés (3 unitaires sur le formatter en isolation, 1 d'intégration
 sur la vraie ligne de log émise par l'API).
 
-**Mise à jour d'avant :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
+**Mise à jour antérieure :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
 alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
 provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
 d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
@@ -57,7 +70,7 @@ tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` 
 Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
 positif).
 
-**Mise à jour antérieure :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
+**Mise à jour plus ancienne :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
 (`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
 à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
 explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
@@ -72,7 +85,7 @@ bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estima
 XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
 réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
 
-**Mise à jour plus ancienne :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+**Mise à jour encore plus ancienne :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
 benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
 justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
 section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
@@ -82,13 +95,6 @@ un attribut dont XGBoost dépend encore pour la sauvegarde MLflow). Garde-fou aj
 occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/serving/model.py` ne
 sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
 puisse pas casser le serving en production si un autre framework l'emportait un jour.
-
-**Mise à jour encore plus ancienne :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
-vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
-pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
-reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
-test de Welch cité mais jamais calculé, et une valeur sentinelle DATEX2 non filtrée dans des
-statistiques trafic.
 
 **Dernière mise à jour structurante :** 2026-09-13. Dashboard Grafana latence/débit/erreurs de
 l'API (`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de

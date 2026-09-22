@@ -37,6 +37,16 @@ COPY ml /app/ml
 
 ENV PYTHONPATH=/app/src:/app
 
+# 4 workers = 4 processus Python séparés, chacun avec son propre compteur Prometheus en mémoire
+# (constaté sur le panel Grafana « Total requêtes » : la valeur retombait de façon non
+# monotone, `sum(http_requests_total{...})` scrutait tantôt un worker, tantôt un autre, sans rien
+# pour les agréger). PROMETHEUS_MULTIPROC_DIR fait passer prometheus_client en mode
+# multiprocess (fichiers mmap par PID, détecté automatiquement par
+# prometheus_fastapi_instrumentator à l'exposition de /metrics, cf. `ml/serving/api.py`) : le
+# dossier doit exister avant l'import du module applicatif (`Instrumentator()` valide sa
+# présence à la construction), d'où la création dans le CMD plutôt que dans le code Python.
+ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+
 EXPOSE 8000
 
 # 4 workers (processus séparés) : un uvicorn à worker unique sérialise les requêtes derrière le
@@ -44,4 +54,9 @@ EXPOSE 8000
 # concurrence, p95 dépassant largement les 300 ms visés dès 25 requêtes simultanées, cf.
 # docs/ml_training_results.md). Chaque worker recharge indépendamment le modèle au démarrage
 # (mémoire dupliquée par worker) — acceptable pour un modèle LightGBM de cette taille.
-CMD ["uvicorn", "ml.serving.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+#
+# Le dossier PROMETHEUS_MULTIPROC_DIR est recréé vide à chaque démarrage du conteneur (pas
+# seulement à la construction de l'image) : un `docker restart` (par opposition à un
+# `up --build`, qui recrée le conteneur) réutilise la même couche writable, et d'anciens
+# fichiers mmap de PID recyclés fausseraient les compteurs en les faisant repartir mélangés.
+CMD ["sh", "-c", "rm -rf \"$PROMETHEUS_MULTIPROC_DIR\" && mkdir -p \"$PROMETHEUS_MULTIPROC_DIR\" && exec uvicorn ml.serving.api:app --host 0.0.0.0 --port 8000 --workers 4"]
