@@ -81,6 +81,7 @@ opérationnelle propre (routage des secours), cf. Architecture §2.1.
 |---|---|---|
 | [`eval_seuil_par_zone.ipynb`](eval_seuil_par_zone.ipynb) | Un seuil unique est-il sûr partout ? | **Non** : recall **0,007** sur Paris malgré 0,808 au national. Seuils par département → recall Paris 0,777 mais **F1 macro national 0,573** (sous le seuil CDC) |
 | [`eval_enrichissement_vs_seuil.ipynb`](eval_enrichissement_vs_seuil.ipynb) | Enrichir les features corrige-t-il la tension ? | Meilleure configuration : enrichissement (2-roues / poids lourd / piéton) **+** seuils par département → recall Paris **0,812**, F1 macro **0,609**. Tension **atténuée, pas résolue** |
+| [`eval_ecart_seuil_departement.ipynb`](eval_ecart_seuil_departement.ipynb) | Sur un accident identique, quel est l'écart entre départements ? | Interroge le **modèle `@staging` déployé** (pas un modèle dédié) : même accident (collision frontale, 90 km/h) de **11,2 % à 88,7 %** selon le département (77,5 points), 70/107 départements le classeraient « grave ». Les 5 plus bas sont tous l'Île-de-France |
 
 → **Point ouvert documenté** (CDC §13.7, §14) : recall ≥ 0,80 par sous-groupe et F1 macro ≥ 0,70
 global ne sont pas simultanément atteignables par simple calibration de seuil. À arbitrer avant

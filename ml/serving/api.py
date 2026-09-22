@@ -23,9 +23,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 import mlflow
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from gravia.config import get_settings
@@ -116,6 +118,16 @@ app = FastAPI(
 # jamais livré). `instrument()` avant `expose()` : sans ça, les requêtes vers /metrics
 # elles-mêmes ne seraient pas instrumentées, `expose()` seul ne fait qu'ajouter la route.
 Instrumentator().instrument(app).expose(app)
+
+# Démo visuelle pour présenter l'API sans passer par Swagger : formulaire qui appelle
+# /v1/predict-severity en JavaScript. Montée sur la même origine (même app FastAPI) pour éviter
+# toute configuration CORS. Accessible sur http://localhost:8000/demo une fois la stack dev
+# démarrée.
+app.mount(
+    "/demo",
+    StaticFiles(directory=Path(__file__).parent / "static", html=True),
+    name="demo",
+)
 
 
 @app.get("/health")

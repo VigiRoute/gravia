@@ -6,7 +6,27 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
+**Dernière mise à jour :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
+montée sur `GET /demo` par `ml/serving/api.py`), sur demande explicite pour une présentation à
+l'oral : formulaire pré-rempli qui appelle `POST /v1/predict-severity` en JavaScript, affiche le
+verdict, la jauge de probabilité avec le seuil, et les contributions SHAP. Montée sur la même
+origine que l'API (pas de configuration CORS nécessaire), donc fonctionne dans le conteneur
+`serving` tel quel. **Vérifiée en conteneur réel** (image reconstruite, requêtes envoyées depuis
+un vrai navigateur).
+
+En testant cette démo, l'utilisateur a remonté un résultat contre-intuitif (collision frontale à
+90 km/h prédite « non grave » à 16,1 % pour Paris) : investigué, ce n'est pas un bug mais une
+**illustration concrète de l'angle mort du seuil unique déjà documenté** (CDC §13.7/§14) — la
+contribution SHAP du seul département vaut -1,39 à Paris contre +2,24 en Creuse pour un accident
+identique. Étendu aux 107 départements du BAAC : écart de 77,5 points (11,2 % à 88,7 %), 70/107
+départements classeraient le même accident « grave ». Documenté dans un nouveau notebook,
+[`notebooks/eval_ecart_seuil_departement.ipynb`](../notebooks/eval_ecart_seuil_departement.ipynb)
+(cf. [notebooks/README.md](../notebooks/README.md) §3), exécuté (pas seulement rédigé) : appelle
+directement le modèle `@staging` via `ml.serving.model`, même chemin de code que l'API, pas un
+modèle dédié comme `eval_seuil_par_zone.ipynb`. Ne change rien au modèle déployé : sert
+d'argument de présentation, pas un correctif appliqué dans l'urgence.
+
+**Mise à jour précédente :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
 (EF-7, `ml/serving/api.py`), sur demande explicite après une relecture des docs en retard : les
 deux logs du serving (`modele_charge`, `prediction`) utilisaient encore l'interpolation `%s` dans
 un message texte, pas des champs nommés — interrogeable seulement au regex, pas au `jq` ni par un
@@ -21,7 +41,7 @@ valide avec les champs attendus (`event`, `departement`, `gravite_predite`, `pro
 restent inchangés. 4 tests ajoutés (3 unitaires sur le formatter en isolation, 1 d'intégration
 sur la vraie ligne de log émise par l'API).
 
-**Mise à jour précédente :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
+**Mise à jour d'avant :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
 alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
 provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
 d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
@@ -37,7 +57,7 @@ tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` 
 Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
 positif).
 
-**Mise à jour d'avant :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
+**Mise à jour antérieure :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
 (`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
 à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
 explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
@@ -52,7 +72,7 @@ bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estima
 XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
 réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
 
-**Mise à jour antérieure :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
+**Mise à jour plus ancienne :** 2026-09-20. XGBoost ajouté au benchmark de modèles (`ml/training/
 benchmark.py`), sur demande explicite, pour comparer réellement plutôt que de s'appuyer sur la
 justification « alternative non testée » (cf. [ml_training_results.md](ml_training_results.md),
 section « XGBoost : ajouté et écarté »). Verdict : recall 0,711 / F1 macro 0,520, sous le seuil
@@ -63,7 +83,7 @@ occasion : `register_best` refuse désormais de promouvoir un modèle que `ml/se
 sait pas charger nativement (`SERVABLE_MODELS`), pour qu'un futur réentraînement planifié ne
 puisse pas casser le serving en production si un autre framework l'emportait un jour.
 
-**Mise à jour plus ancienne :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
+**Mise à jour encore plus ancienne :** 2026-09-20. Les 11 scripts `.py` de `notebooks/` sont désormais de
 vrais notebooks Jupyter exécutés (`.ipynb`, kernel `gravia`), plus `notebooks/run_notebook.py`
 pour les rejouer de façon reproductible (cf. [notebooks/README.md](../notebooks/README.md)). En
 reproduisant les résultats déjà publiés, deux écarts doc/code ont été trouvés et corrigés : un
