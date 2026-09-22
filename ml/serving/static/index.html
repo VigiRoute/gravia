@@ -4,62 +4,71 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GRAVIA — démo de prédiction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f4f5f2; --surface:#ffffff; --ink:#1b211f; --ink-dim:#5c645f; --line:#d7dad2;
-    --data:#2f6f5e; --model:#b33d22; --model-soft:#f4e1da; --data-soft:#dcebe6;
+    /* Fond/accents repris du theme Adminer de la stack (infra/adminer/adminer.css). */
+    --bg:#09090b; --surface:#18181b; --surface-2:#2a2838;
+    --ink:#ffffff; --ink-dim:rgba(255,255,255,.5); --line:rgba(255,255,255,.11);
+    --data:#16a34a; --data-soft:rgba(22,163,74,.16);
+    --model:#e44747; --model-soft:rgba(228,71,71,.16);
+    --input-bg:rgba(255,255,255,.04);
   }
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--bg); color:var(--ink);
-    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
     padding:24px 16px 60px;
   }
   .wrap{max-width:880px;margin:0 auto;}
-  h1{font-size:22px;margin:0 0 4px;}
+  h1{font-size:23px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em;}
   .sub{color:var(--ink-dim);font-size:13.5px;margin:0 0 22px;}
-  form{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;}
-  fieldset{border:none;padding:0;margin:0 0 18px;}
-  legend{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--data);margin-bottom:8px;padding:0;}
+  form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;}
+  fieldset{border:none;padding:0;margin:0 0 20px;}
+  legend{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);margin-bottom:10px;padding:0;}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
   label{display:block;font-size:12.5px;color:var(--ink-dim);margin-bottom:4px;}
   select,input[type=text],input[type=number],input[type=datetime-local]{
-    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
-    background:var(--bg);color:var(--ink);font-size:13.5px;
+    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--input-bg);color:var(--ink);font-size:13.5px;font-family:inherit;
   }
+  select{color-scheme:dark;}
   .field{margin-bottom:2px;}
   .checks{display:flex;flex-wrap:wrap;gap:14px;}
   .checks label{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin:0;}
-  .actions{display:flex;align-items:center;gap:12px;margin-top:6px;}
+  .actions{display:flex;align-items:center;gap:12px;margin-top:8px;}
   button{
-    background:var(--model);color:#fff;border:none;border-radius:8px;
-    padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;
+    background:var(--data);color:#fff;border:none;border-radius:8px;
+    padding:11px 22px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
   }
+  button:hover{background:#15803d;}
   button:disabled{opacity:.5;cursor:wait;}
   #status{font-size:13px;color:var(--ink-dim);}
   #result{margin-top:20px;}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:14px;}
   .verdict{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .badge{
-    font-weight:800;font-size:15px;padding:6px 14px;border-radius:999px;letter-spacing:.02em;
+    font-weight:700;font-size:14px;padding:6px 14px;border-radius:999px;letter-spacing:.02em;
   }
   .badge.grave{background:var(--model-soft);color:var(--model);}
   .badge.non_grave{background:var(--data-soft);color:var(--data);}
   .meta{font-size:12.5px;color:var(--ink-dim);}
   .gauge-wrap{margin-top:14px;}
-  .gauge{position:relative;height:14px;border-radius:999px;background:linear-gradient(90deg,var(--data-soft),var(--model-soft));border:1px solid var(--line);overflow:visible;}
-  .gauge .fill{position:absolute;top:0;left:0;bottom:0;border-radius:999px;background:var(--model);opacity:.35;}
+  .gauge{position:relative;height:10px;border-radius:999px;background:var(--input-bg);border:1px solid var(--line);overflow:visible;}
+  .gauge .fill{position:absolute;top:0;left:0;bottom:0;border-radius:999px;background:var(--model);opacity:.5;}
   .gauge .threshold{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);}
   .gauge-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin:0 0 10px;}
+  h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);margin:0 0 12px;}
   .bars{display:flex;flex-direction:column;gap:7px;}
   .bar-row{display:grid;grid-template-columns:150px 1fr 60px;gap:8px;align-items:center;font-size:12.5px;}
-  .bar-track{position:relative;height:14px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--line);}
+  .bar-track{position:relative;height:12px;background:var(--input-bg);border-radius:6px;overflow:hidden;border:1px solid var(--line);}
   .bar-fill{position:absolute;top:0;bottom:0;}
   .bar-fill.pos{background:var(--model);left:50%;}
   .bar-fill.neg{background:var(--data);right:50%;}
   .err{color:var(--model);font-size:13.5px;}
-  code{font-family:ui-monospace,monospace;background:var(--bg);padding:1px 5px;border-radius:4px;}
+  code{font-family:ui-monospace,Consolas,monospace;background:var(--input-bg);color:var(--data);padding:2px 6px;border-radius:5px;}
 </style>
 </head>
 <body>
