@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRAVIA — démo de prédiction</title>
+<style>
+  :root{
+    --bg:#f4f5f2; --surface:#ffffff; --ink:#1b211f; --ink-dim:#5c645f; --line:#d7dad2;
+    --data:#2f6f5e; --model:#b33d22; --model-soft:#f4e1da; --data-soft:#dcebe6;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:880px;margin:0 auto;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .sub{color:var(--ink-dim);font-size:13.5px;margin:0 0 22px;}
+  form{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;}
+  fieldset{border:none;padding:0;margin:0 0 18px;}
+  legend{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--data);margin-bottom:8px;padding:0;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+  label{display:block;font-size:12.5px;color:var(--ink-dim);margin-bottom:4px;}
+  select,input[type=text],input[type=number],input[type=datetime-local]{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
+    background:var(--bg);color:var(--ink);font-size:13.5px;
+  }
+  .field{margin-bottom:2px;}
+  .checks{display:flex;flex-wrap:wrap;gap:14px;}
+  .checks label{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink);margin:0;}
+  .actions{display:flex;align-items:center;gap:12px;margin-top:6px;}
+  button{
+    background:var(--model);color:#fff;border:none;border-radius:8px;
+    padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  button:disabled{opacity:.5;cursor:wait;}
+  #status{font-size:13px;color:var(--ink-dim);}
+  #result{margin-top:20px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px;}
+  .verdict{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .badge{
+    font-weight:800;font-size:15px;padding:6px 14px;border-radius:999px;letter-spacing:.02em;
+  }
+  .badge.grave{background:var(--model-soft);color:var(--model);}
+  .badge.non_grave{background:var(--data-soft);color:var(--data);}
+  .meta{font-size:12.5px;color:var(--ink-dim);}
+  .gauge-wrap{margin-top:14px;}
+  .gauge{position:relative;height:14px;border-radius:999px;background:linear-gradient(90deg,var(--data-soft),var(--model-soft));border:1px solid var(--line);overflow:visible;}
+  .gauge .fill{position:absolute;top:0;left:0;bottom:0;border-radius:999px;background:var(--model);opacity:.35;}
+  .gauge .threshold{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);}
+  .gauge-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-dim);margin-top:4px;}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin:0 0 10px;}
+  .bars{display:flex;flex-direction:column;gap:7px;}
+  .bar-row{display:grid;grid-template-columns:150px 1fr 60px;gap:8px;align-items:center;font-size:12.5px;}
+  .bar-track{position:relative;height:14px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--line);}
+  .bar-fill{position:absolute;top:0;bottom:0;}
+  .bar-fill.pos{background:var(--model);left:50%;}
+  .bar-fill.neg{background:var(--data);right:50%;}
+  .err{color:var(--model);font-size:13.5px;}
+  code{font-family:ui-monospace,monospace;background:var(--bg);padding:1px 5px;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>GRAVIA — démo de prédiction de gravité</h1>
+  <p class="sub">Appelle en direct <code>POST /v1/predict-severity</code> de cette API (assiste, ne décide pas — la décision reste humaine).</p>
+
+  <form id="f">
+    <fieldset>
+      <legend>Signalement</legend>
+      <div class="grid">
+        <div class="field"><label>Moment</label><input type="datetime-local" name="moment" required></div>
+        <div class="field"><label>Département</label><input type="text" name="departement" value="75" required></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lieu</legend>
+      <div class="grid">
+        <div class="field"><label>Agglomération</label>
+          <select name="agglomeration"><option value="true" selected>Oui</option><option value="false">Non</option></select>
+        </div>
+        <div class="field"><label>Intersection</label>
+          <select name="intersection">
+            <option value="1" selected>Hors intersection</option><option value="2">En X</option>
+            <option value="3">En T</option><option value="4">En Y</option>
+            <option value="5">Plus de 4 branches</option><option value="6">Giratoire</option>
+            <option value="7">Place</option><option value="8">Passage à niveau</option>
+            <option value="9">Autre</option><option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Catégorie de route</label>
+          <select name="categorie_route">
+            <option value="1">Autoroute</option><option value="2">Nationale</option>
+            <option value="3">Départementale</option><option value="4" selected>Voie communale</option>
+            <option value="5">Hors réseau public</option><option value="6">Parking</option>
+            <option value="7">Métropole urbaine</option><option value="9">Autre</option>
+          </select>
+        </div>
+        <div class="field"><label>Régime de circulation</label>
+          <select name="regime_circulation">
+            <option value="1">Sens unique</option><option value="2" selected>Bidirectionnelle</option>
+            <option value="3">Chaussées séparées</option><option value="4">Voies à affectation variable</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Nombre de voies</label><input type="number" name="nb_voies" value="2" min="0" required></div>
+        <div class="field"><label>Voie réservée</label>
+          <select name="voie_reservee">
+            <option value="0" selected>Sans objet</option><option value="1">Piste cyclable</option>
+            <option value="2">Bande cyclable</option><option value="3">Voie réservée</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Profil de la route</label>
+          <select name="profil_route">
+            <option value="1" selected>Plat</option><option value="2">Pente</option>
+            <option value="3">Sommet de côte</option><option value="4">Bas de côte</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Tracé en plan</label>
+          <select name="trace_plan">
+            <option value="1" selected>Rectiligne</option><option value="2">Courbe à gauche</option>
+            <option value="3">Courbe à droite</option><option value="4">En S</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Vitesse maximale (km/h)</label><input type="number" name="vitesse_max" value="50" min="0" required></div>
+        <div class="field"><label>Infrastructure</label>
+          <select name="infrastructure">
+            <option value="0" selected>Aucun</option><option value="1">Souterrain / tunnel</option>
+            <option value="2">Pont / autopont</option><option value="3">Bretelle d'échangeur</option>
+            <option value="4">Voie ferrée</option><option value="5">Carrefour aménagé</option>
+            <option value="6">Zone piétonne</option><option value="7">Zone de péage</option>
+            <option value="8">Chantier</option><option value="9">Autres</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Situation</label>
+          <select name="situation">
+            <option value="1" selected>Sur chaussée</option><option value="2">Bande d'arrêt d'urgence</option>
+            <option value="3">Accotement</option><option value="4">Trottoir</option>
+            <option value="5">Piste cyclable</option><option value="6">Autre voie spéciale</option>
+            <option value="8">Autres</option><option value="0">Aucun</option>
+            <option value="-1">Non renseigné</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Conditions</legend>
+      <div class="grid">
+        <div class="field"><label>Luminosité</label>
+          <select name="luminosite">
+            <option value="1" selected>Plein jour</option><option value="2">Crépuscule / aube</option>
+            <option value="3">Nuit sans éclairage public</option>
+            <option value="4">Nuit, éclairage public non allumé</option>
+            <option value="5">Nuit, éclairage public allumé</option>
+          </select>
+        </div>
+        <div class="field"><label>Météo</label>
+          <select name="meteo">
+            <option value="1" selected>Normale</option><option value="2">Pluie légère</option>
+            <option value="3">Pluie forte</option><option value="4">Neige / grêle</option>
+            <option value="5">Brouillard / fumée</option><option value="6">Vent fort / tempête</option>
+            <option value="7">Temps éblouissant</option><option value="8">Temps couvert</option>
+            <option value="9">Autre</option><option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>État de la surface</label>
+          <select name="etat_surface">
+            <option value="1" selected>Normale</option><option value="2">Mouillée</option>
+            <option value="3">Flaques</option><option value="4">Inondée</option>
+            <option value="5">Enneigée</option><option value="6">Boue</option>
+            <option value="7">Verglacée</option><option value="8">Corps gras / huile</option>
+            <option value="9">Autre</option><option value="-1">Non renseigné</option>
+          </select>
+        </div>
+        <div class="field"><label>Type de collision</label>
+          <select name="type_collision">
+            <option value="1">2 véhicules, frontale</option><option value="2">2 véhicules, par l'arrière</option>
+            <option value="3" selected>2 véhicules, par le côté</option><option value="4">3+ véhicules, en chaîne</option>
+            <option value="5">3+ véhicules, collisions multiples</option><option value="6">Autre collision</option>
+            <option value="7">Sans collision</option><option value="-1">Non renseigné</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Véhicules et usagers impliqués</legend>
+      <div class="field" style="max-width:200px;margin-bottom:12px;">
+        <label>Nombre de véhicules</label><input type="number" name="nb_vehicules" value="2" min="0" required>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" name="flag_2roues_motorise" checked> Deux-roues motorisé</label>
+        <label><input type="checkbox" name="flag_poids_lourd"> Poids lourd / bus / car</label>
+        <label><input type="checkbox" name="flag_velo_edp"> Vélo / EDP</label>
+        <label><input type="checkbox" name="flag_pieton"> Piéton</label>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit">Prédire la gravité</button>
+      <span id="status"></span>
+    </div>
+  </form>
+
+  <div id="result"></div>
+</div>
+
+<script>
+const form = document.getElementById('f');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+
+// Pré-remplit l'heure du signalement avec l'instant présent.
+form.moment.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+function toPayload(fd) {
+  const bools = new Set(['agglomeration', 'flag_2roues_motorise', 'flag_poids_lourd', 'flag_velo_edp', 'flag_pieton']);
+  const ints = new Set(['intersection','categorie_route','regime_circulation','nb_voies','voie_reservee',
+    'profil_route','trace_plan','vitesse_max','infrastructure','situation','luminosite','meteo',
+    'etat_surface','type_collision','nb_vehicules']);
+  const payload = {};
+  for (const [key, value] of fd.entries()) {
+    if (bools.has(key)) payload[key] = (value === 'true');
+    else if (ints.has(key)) payload[key] = parseInt(value, 10);
+    else payload[key] = value;
+  }
+  for (const name of ['flag_2roues_motorise','flag_poids_lourd','flag_velo_edp','flag_pieton','agglomeration']) {
+    payload[name] = form.elements[name].type === 'checkbox' ? form.elements[name].checked : payload[name];
+  }
+  return payload;
+}
+
+function renderResult(data) {
+  const isGrave = data.gravite_predite === 'grave';
+  const pct = Math.round(data.probabilite * 1000) / 10;
+  const seuilPct = Math.round(data.seuil_decision * 1000) / 10;
+
+  const bars = data.top_contributions.map(c => {
+    const width = Math.min(Math.abs(c.contribution) * 220, 50);
+    const cls = c.contribution >= 0 ? 'pos' : 'neg';
+    const style = c.contribution >= 0
+      ? `left:50%;width:${width}px;`
+      : `right:50%;width:${width}px;`;
+    return `<div class="bar-row">
+      <span>${c.feature}</span>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="${style}"></div></div>
+      <span>${c.contribution.toFixed(3)}</span>
+    </div>`;
+  }).join('');
+
+  resultEl.innerHTML = `
+    <div class="card">
+      <div class="verdict">
+        <span class="badge ${data.gravite_predite}">${isGrave ? 'GRAVE' : 'NON GRAVE'}</span>
+        <span class="meta">probabilité <b>${pct}%</b> · modèle <code>${data.modele_version}</code></span>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <div class="fill" style="width:${pct}%"></div>
+          <div class="threshold" style="left:${seuilPct}%"></div>
+        </div>
+        <div class="gauge-labels"><span>0%</span><span>seuil de décision ${seuilPct}%</span><span>100%</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Variables les plus contributives (SHAP)</h2>
+      <div class="bars">${bars}</div>
+    </div>
+  `;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.disabled = true;
+  statusEl.textContent = 'Prédiction en cours…';
+  resultEl.innerHTML = '';
+  try {
+    const payload = toPayload(new FormData(form));
+    payload.moment = new Date(form.moment.value).toISOString();
+    const res = await fetch('/v1/predict-severity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} : ${body}`);
+    }
+    renderResult(await res.json());
+    statusEl.textContent = '';
+  } catch (err) {
+    resultEl.innerHTML = `<p class="err">Échec de la prédiction : ${err.message}</p>`;
+    statusEl.textContent = '';
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
