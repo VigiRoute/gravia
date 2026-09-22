@@ -123,6 +123,23 @@ services:
       timeout: 5s
       retries: 10
 
+  # Interface web pour naviguer la base Gold (contrairement à MinIO/MLflow/Grafana, PostgreSQL
+  # n'a pas de UI web propre) : utile pour montrer gold_fact_accident et ses dimensions en direct
+  # pendant une démo, sans écrire de SQL à la main. Variante "standalone" : image plus légère,
+  # pas de dépendance PHP-FPM/nginx séparée.
+  adminer:
+    image: adminer:4.8.1-standalone
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      # Adminer charge automatiquement adminer.css s'il le trouve à côté de son index.php,
+      # aucune configuration PHP nécessaire.
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # --- Cache, provisionné : aucun module applicatif ne s'y connecte à ce jour (cf.
   # Architecture_GRAVIA.md §3) ---
   redis:
