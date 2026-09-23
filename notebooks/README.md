@@ -2,7 +2,7 @@
 
 Notebooks Jupyter (`.ipynb`) ayant produit les résultats et les décisions cités dans le
 [CDC](../docs/CDC_GRAVIA.md) (§13.6-7), l'[architecture](../docs/Architecture_GRAVIA.md) et la
-[présentation](../docs/Presentation_Projet_GRAVIA_Jedha.md) (Bloc 4).
+[présentation](../docs/old/Presentation_Projet_GRAVIA_Jedha.md) (Bloc 4).
 
 Chaque notebook documente ses résultats dans sa cellule markdown d'en-tête et son contenu est
 volontairement séparé du code de production (`ml/`, `pipelines/`) : ce sont des explorations
