@@ -87,6 +87,12 @@ opérationnelle propre (routage des secours), cf. Architecture §2.1.
 global ne sont pas simultanément atteignables par simple calibration de seuil. À arbitrer avant
 mise en production.
 
+## 4. Apport des features dérivées de la date
+
+| Notebook | Question | Résultat |
+|---|---|---|
+| [`eval_ablation_date.ipynb`](eval_ablation_date.ipynb) | `heure`/`mois`/`jour_semaine` apportent-elles quelque chose au modèle ? | **Non, rien de mesurable** : sans ces 3 features, recall 0,806 (vs 0,808) et F1 macro 0,724 (vs 0,726) — écart du même ordre que le bruit déjà observé pour la recherche d'hyperparamètres. Cohérent avec leur faible importance native (`heure` 1,0 %, `jour_semaine` 0,3 %, `mois` 0,1 % du gain total, contre 58,2 % pour `departement`) |
+
 ## Prérequis
 
 ```bash
