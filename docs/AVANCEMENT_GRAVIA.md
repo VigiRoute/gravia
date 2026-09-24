@@ -6,7 +6,25 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-23. Ablation des features dérivées de la date
+**Dernière mise à jour :** 2026-09-24. `com` (commune) supprimée en Silver
+(`src/gravia/silver.py::CARACTERISTIQUES_DROPPED_COLUMNS`), trouvé en creusant une question RGPD
+explicite de l'utilisateur sur la conservation de la date : `com` restait conservée alors que
+combinée à la date exacte de l'accident, une commune peu accidentogène peut rester le seul
+accident du jour dans sa cellule — un vrai vecteur de ré-identification même sans coordonnées
+précises, déjà raisonné dans le code (justification du rejet de l'arrondi de coordonnées) mais
+jamais appliqué à `com` elle-même, et jamais remonté dans l'AIPD (qui marquait le risque « Fait »
+sans le mentionner). Corrigé comme `lat`/`long`/`adr`/`voie`/`v1`/`v2`/`pr`/`pr1` avant elle : `com`
+n'est utilisée nulle part en aval (vérifié : ni `gravia.gold`, ni `ml/features`, ni aucun
+notebook), donc **aucun impact sur le modèle déployé** — seul un retraitement Silver nécessaire.
+`docs/AIPD_GRAVIA.md` et `docs/Gouvernance_GRAVIA.md`/`.docx` mis à jour pour refléter que seul
+`dep` subsiste désormais. 2 tests unitaires avaient des fixtures sans colonne `com` (`drop()`
+strict de Polars y échouait) : corrigés en ajoutant `dep`/`com` réalistes, 61/61 tests unitaires
+passent. **Silver régénéré en local sur les 5 millésimes** (vérifié : `com` absent des Parquet
+produits) ; **re-synchronisation vers MinIO en attente** — Docker Desktop s'est arrêté en cours de
+route, à relancer puis rejouer `python -m gravia.silver` pour que les objets déjà sur MinIO
+reflètent le retrait.
+
+**Mise à jour précédente :** 2026-09-23. Ablation des features dérivées de la date
 (`notebooks/eval_ablation_date.ipynb`), sur question explicite (« est-ce que la date apporte
 quelque chose ? ») après avoir constaté que `departement` domine à 58,2 % le gain du modèle
 `@staging` (importance native LightGBM) contre `heure` 1,0 %, `jour_semaine` 0,3 %, `mois` 0,1 %.
@@ -16,7 +34,7 @@ F1 macro 0,724 (vs 0,726) — **écart dans le bruit**, les deux seuils CDC rest
 empiriquement que ces features n'apportent rien de mesurable. Ne modifie pas le modèle déployé
 (pas d'appel à `register_best`, run MLflow tracké mais non enregistré au registry).
 
-**Mise à jour précédente :** 2026-09-22. Correctif Prometheus multiprocess
+**Mise à jour d'avant :** 2026-09-22. Correctif Prometheus multiprocess
 (`infra/serving/Dockerfile`), trouvé en préparant la démo : le panel Grafana « Total requêtes
 /v1/predict-severity » retombait de façon non monotone (ex. 15 → 2, vérifié via l'API range de
 Prometheus) alors que le conteneur n'avait jamais redémarré (`RestartCount=0`). Cause réelle : les
@@ -29,7 +47,7 @@ dossier est recréé vide dans le `CMD` (pas seulement à la construction de l'i
 40 requêtes concurrentes → compteur agrégé à 40 (4 fichiers `counter_<pid>.db`, un par worker),
 puis incréments séquentiels 41/42/43 sans régression.
 
-**Mise à jour d'avant :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
+**Mise à jour antérieure :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
 montée sur `GET /demo` par `ml/serving/api.py`), sur demande explicite pour une présentation à
 l'oral : formulaire pré-rempli qui appelle `POST /v1/predict-severity` en JavaScript, affiche le
 verdict, la jauge de probabilité avec le seuil, et les contributions SHAP. Montée sur la même
@@ -49,7 +67,7 @@ directement le modèle `@staging` via `ml.serving.model`, même chemin de code q
 modèle dédié comme `eval_seuil_par_zone.ipynb`. Ne change rien au modèle déployé : sert
 d'argument de présentation, pas un correctif appliqué dans l'urgence.
 
-**Mise à jour antérieure :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
+**Mise à jour plus ancienne :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
 (EF-7, `ml/serving/api.py`), sur demande explicite après une relecture des docs en retard : les
 deux logs du serving (`modele_charge`, `prediction`) utilisaient encore l'interpolation `%s` dans
 un message texte, pas des champs nommés — interrogeable seulement au regex, pas au `jq` ni par un
@@ -64,7 +82,7 @@ valide avec les champs attendus (`event`, `departement`, `gravite_predite`, `pro
 restent inchangés. 4 tests ajoutés (3 unitaires sur le formatter en isolation, 1 d'intégration
 sur la vraie ligne de log émise par l'API).
 
-**Mise à jour plus ancienne :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
+**Mise à jour encore plus ancienne :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
 alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
 provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
 d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
@@ -79,21 +97,6 @@ tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` 
 « cible injoignable » passe Normal → Pending → Firing (~1 min) → conteneur redémarré → retour à
 Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
 positif).
-
-**Mise à jour encore plus ancienne :** 2026-09-21. Recherche d'hyperparamètres ajoutée au benchmark de modèles
-(`ml/training/benchmark.py`), sur demande explicite, pour vérifier qu'aucun modèle n'était écarté
-à tort faute de réglage : `RandomizedSearchCV` (15 essais par modèle, budget modeste choisi
-explicitement) validé par `TimeSeriesSplit` sur le train, pas un k-fold aléatoire classique
-(données chronologiques). Appliquée aux 4 familles, y compris celles jamais promues : le garde-fou
-`SERVABLE_MODELS` (cf. entrée précédente) empêche déjà toute promotion hors de LightGBM, donc pas
-de risque de casser le serving. Verdict : **le tuning ne change ni le modèle retenu ni sa
-performance de façon notable** (LightGBM quasi inchangé, réglages par défaut déjà proches de
-l'optimum) ; seul XGBoost bouge nettement mais reste sous le seuil CDC dans les deux cas (cf.
-[ml_training_results.md](ml_training_results.md), section « Recherche d'hyperparamètres »). Un vrai
-bug trouvé et corrigé au passage : `RandomizedSearchCV` reconstruit son estimateur final par
-`clone()` + refit interne, qui efface les attributs d'instance ajoutés après coup (le contournement
-XGBoost `_estimator_type`, cf. entrée précédente) — réappliqué sur `best_estimator_`. Modèle
-réentraîné et re-promu en v5 (mêmes réglages, quasi identiques à v4).
 
 **Dernière mise à jour structurante :** 2026-09-13. Dashboard Grafana latence/débit/erreurs de
 l'API (`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de

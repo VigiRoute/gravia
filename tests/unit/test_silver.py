@@ -44,6 +44,8 @@ def test_clean_caracteristiques_drops_precise_geolocation() -> None:
             "lat": ["48.85"],
             "long": ["2.35"],
             "adr": ["56bis Avenue Raspail"],
+            "dep": ["75"],
+            "com": ["75101"],
         }
     )
 
@@ -52,6 +54,8 @@ def test_clean_caracteristiques_drops_precise_geolocation() -> None:
     assert "lat" not in result.columns
     assert "long" not in result.columns
     assert "adr" not in result.columns
+    assert "com" not in result.columns
+    assert "dep" in result.columns
     assert result["lum"][0] == -1
 
 
@@ -176,6 +180,8 @@ def test_clean_table_drops_blank_export_artifact_row(tmp_path) -> None:
             "lat": ["48.85", None],
             "long": ["2.35", None],
             "adr": ["56bis Avenue Raspail", None],
+            "dep": ["75", None],
+            "com": ["75101", None],
         }
     )
     source = bronze_path("caracteristiques", 2023, settings)
@@ -232,6 +238,7 @@ def test_clean_runs_local_pipeline_from_real_bronze_output(tmp_path: Path) -> No
     result = pl.read_parquet(silver_path("caracteristiques", 2023, settings))
     assert result.height == 1
     assert "lat" not in result.columns
+    assert "com" not in result.columns
     usagers = pl.read_parquet(silver_path("usagers", 2023, settings))
     assert usagers["tranche_age"][0] == "25-34"  # 2023 - 1990 = 33 ans
 

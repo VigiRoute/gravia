@@ -53,7 +53,7 @@ Cette dualité (open data historique vs données opérationnelles sensibles) str
 | **Données sensibles (art. 9 RGPD)** | **Gravité = donnée de santé** | Confidentiel | Accès strict, AIPD |
 | Données opérationnelles (prod) | Signalement temps réel d'une victime identifiable | Confidentiel | Chiffrement, accès strict, traçabilité |
 
-**Donnée à risque de ré-identification** : le croisement `latitude/longitude` + `date` + `commune` peut réidentifier une victime → mesure d'agrégation géographique en couche Silver.
+**Donnée à risque de ré-identification** : le croisement `latitude/longitude` + `date` + `commune` peut réidentifier une victime → mesure d'agrégation géographique en couche Silver : `lat`/`long`/`adr` et `com` (commune) supprimées, seul le département (`dep`) subsiste. La commune seule combinée à la date exacte pouvait déjà isoler un accident unique dans une zone peu accidentogène, d'où sa suppression au même titre que les coordonnées précises.
 
 ## 4. Cadre réglementaire et normatif
 

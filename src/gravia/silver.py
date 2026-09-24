@@ -19,12 +19,16 @@ Pseudonymisation (cf. CLAUDE.md, données personnelles et sensibles ; docs/AIPD_
       étaient conservés tels quels alors qu'ils réidentifient au moins aussi précisément qu'une
       coordonnée arrondie — le vecteur de risque que l'AIPD nomme explicitement. Aucune des deux
       couches n'est utilisée par `gravia.gold` ni par `ml/features` (vérifié), leur suppression ne
-      change aucun chiffre du modèle. La localisation reste disponible via `dep`/`com`, déjà
-      natifs BAAC à la granularité commune. Un simple arrondi de coordonnées a été écarté : il
-      resterait de la pseudonymisation réversible au sens RGPD (la donnée reste personnelle), et
-      ne garantit pas la non-individualisation dans les communes peu accidentogènes (une
-      coordonnée arrondie + date + commune peut rester le seul accident du jour dans sa cellule).
-      L'agrégation à la commune correspond au terme employé par l'AIPD.
+      change aucun chiffre du modèle. `com` (commune) supprimée pour la même raison, trouvé en
+      auditant à nouveau après une question explicite de l'utilisateur sur la RGPD : combinée à la
+      date exacte de l'accident (conservée jusqu'en Gold), une commune peu accidentogène peut
+      rester le seul accident du jour dans sa cellule — un vrai vecteur de ré-identification même
+      sans coordonnées précises. Un simple arrondi de `lat`/`long` plutôt que leur suppression
+      avait déjà été écarté pour cette exacte raison (resterait individualisant dans une commune
+      peu accidentogène) sans que le raisonnement soit appliqué à `com` elle-même jusqu'ici. `com`
+      n'est utilisée nulle part en aval (vérifié : ni `gravia.gold`, ni `ml/features`, ni aucun
+      notebook). La localisation reste disponible via `dep` seule (96 départements, granularité
+      nettement plus grossière qu'une commune).
     - Âge : `an_nais` est remplacé par une tranche d'âge (`tranche_age`), calculée à partir de
       `_millesime` (année de l'accident, déjà présente en provenance Bronze — cf. `gravia.bronze`)
       plutôt que via `caracteristiques.an`, ce qui évite une jointure inter-table pour une simple
@@ -150,7 +154,10 @@ AGE_IMPLAUSIBLE_ABOVE = 110
 
 #: Colonnes de géolocalisation précise, supprimées par pseudonymisation (cf. docstring module).
 #: `adr` (adresse postale en texte libre) réidentifie au moins aussi précisément que `lat`/`long`.
-CARACTERISTIQUES_DROPPED_COLUMNS: tuple[str, ...] = ("lat", "long", "adr")
+#: `com` (commune) supprimée pour la même raison : combinée à la date exacte, elle peut isoler un
+#: accident unique dans une commune peu accidentogène (cf. docstring module, risque déjà identifié
+#: en écartant l'arrondi de coordonnées mais pas appliqué à `com` elle-même jusqu'ici).
+CARACTERISTIQUES_DROPPED_COLUMNS: tuple[str, ...] = ("lat", "long", "adr", "com")
 
 
 class MissingBronzeFileError(FileNotFoundError):
