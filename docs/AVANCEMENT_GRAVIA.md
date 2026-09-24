@@ -19,10 +19,9 @@ notebook), donc **aucun impact sur le modèle déployé** — seul un retraiteme
 `docs/AIPD_GRAVIA.md` et `docs/Gouvernance_GRAVIA.md`/`.docx` mis à jour pour refléter que seul
 `dep` subsiste désormais. 2 tests unitaires avaient des fixtures sans colonne `com` (`drop()`
 strict de Polars y échouait) : corrigés en ajoutant `dep`/`com` réalistes, 61/61 tests unitaires
-passent. **Silver régénéré en local sur les 5 millésimes** (vérifié : `com` absent des Parquet
-produits) ; **re-synchronisation vers MinIO en attente** — Docker Desktop s'est arrêté en cours de
-route, à relancer puis rejouer `python -m gravia.silver` pour que les objets déjà sur MinIO
-reflètent le retrait.
+passent. **Silver régénéré et resynchronisé sur MinIO pour les 5 millésimes** (vérifié directement
+sur l'objet S3, pas seulement en local : `com` absent, `dep` présent) — Docker Desktop s'était
+arrêté en cours de route, relancé par l'utilisateur puis resynchronisation confirmée.
 
 **Mise à jour précédente :** 2026-09-23. Ablation des features dérivées de la date
 (`notebooks/eval_ablation_date.ipynb`), sur question explicite (« est-ce que la date apporte
