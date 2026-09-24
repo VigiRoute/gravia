@@ -28,7 +28,7 @@ Estimer la probabilité qu'un accident signalé soit **grave** (au moins une vic
 ### 2.2 Données traitées
 | Type | Données | Statut |
 |---|---|---|
-| Personnelles | Âge (bucketé en tranche, `an_nais` supprimé) ; géolocalisation (`lat`/`long`/`adr`/`voie`/`v1`/`v2`/`pr`/`pr1` supprimées, seuls `dep`/`com` subsistent) | **Pseudonymisées en Silver** |
+| Personnelles | Âge (bucketé en tranche, `an_nais` supprimé) ; géolocalisation (`lat`/`long`/`adr`/`voie`/`v1`/`v2`/`pr`/`pr1`/`com` supprimées, seul `dep` subsiste) | **Pseudonymisées en Silver** |
 | Personnelles, conservées telles quelles | Sexe (nécessaire à l'audit d'équité EC-6, cf. `docs/model_fairness.md`), motif de trajet | Non transformées ; minimisation à réévaluer si `trajet` reste inutilisé en aval (vérifié : ni Gold ni le modèle ne le consomment) |
 | **Sensibles** | Gravité (donnée de santé) : **cible** | Accès strict |
 | Contextuelles | Date/heure, météo (déjà portée par le BAAC, `atm`), route, type de collision, véhicules ; trafic DATEX exploré en batch, testé et écarté comme feature de modèle (cf. CDC §13.6) | Non personnelles |
@@ -93,7 +93,7 @@ Aucun (hébergement UE / local).
 
 | Risque IA | Description | Mesure |
 |---|---|---|
-| **Ré-identification** | Croisement adresse/localisation précise + date + commune | **Fait** : `lat`/`long`/`adr`/`voie`/`pr`/`pr1` supprimées en Silver, seuls `dep`/`com` subsistent (cf. `src/gravia/silver.py`) |
+| **Ré-identification** | Croisement adresse/localisation précise + date + commune | **Fait** : `lat`/`long`/`adr`/`voie`/`pr`/`pr1`/`com` supprimées en Silver, seul `dep` subsiste (cf. `src/gravia/silver.py`) |
 | **Biais / discrimination** | Scoring défavorable selon âge/sexe | **Tests d'équité faits et documentés** (`docs/model_fairness.md`) ; **atténuation non implémentée** : écart de FPR de 0,191 par tranche d'âge documenté comme point ouvert à trancher avant production (cf. CDC §13.7/§14) |
 | **Opacité** | Décision non comprise par l'opérateur | **Explicabilité SHAP** par prédiction |
 | **Sur-confiance** | Opérateur suit aveuglément le modèle | Human-in-the-loop, formation, affichage de l'incertitude |
@@ -105,8 +105,8 @@ Aucun (hébergement UE / local).
 
 | Mesure | Statut | Responsable |
 |---|---|---|
-| Pseudonymisation dès la Silver | **Fait** : `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels. Trouvé en auditant a posteriori : `adr` (adresse postale, quasi 100 % renseignée) et `voie`/`v1`/`v2`/`pr`/`pr1` (localisation métrique sur la route) restaient conservées telles quelles, contredisant cette mesure ; corrigé, Silver régénéré sur les 5 millésimes, sans impact sur Gold/le modèle (vérifié : ces colonnes n'y sont pas consommées) | Architecte IA |
-| Agrégation géographique anti-ré-identification | **Fait** : localisation restant disponible via `dep`/`com` uniquement (cf. `silver.py`) | Architecte IA |
+| Pseudonymisation dès la Silver | **Fait** : `lat`/`long` supprimées, âge remplacé par tranche d'âge (`src/gravia/silver.py`), vérifié sur les 5 millésimes réels. Trouvé en auditant a posteriori : `adr` (adresse postale, quasi 100 % renseignée) et `voie`/`v1`/`v2`/`pr`/`pr1` (localisation métrique sur la route) restaient conservées telles quelles, contredisant cette mesure ; corrigé, Silver régénéré sur les 5 millésimes, sans impact sur Gold/le modèle (vérifié : ces colonnes n'y sont pas consommées). Trouvé à nouveau, sur question explicite de l'utilisateur : `com` (commune) restait aussi conservée — combinée à la date exacte de l'accident, une commune peu accidentogène peut rester le seul accident du jour dans sa cellule, un vrai vecteur de ré-identification même sans coordonnées précises. Corrigé de la même façon (supprimée en Silver, Silver régénéré, non consommée par Gold/le modèle) | Architecte IA |
+| Agrégation géographique anti-ré-identification | **Fait** : localisation restant disponible via `dep` uniquement — pas `com` (cf. `silver.py`) | Architecte IA |
 | Chiffrement repos + transit | À implémenter : dev local sans TLS ; cible cloud (S3/RDS chiffrés, TLS) documentée mais non déployée (pas de budget cloud, cf. [Architecture_GRAVIA.md §2.1](Architecture_GRAVIA.md)) | RSSI |
 | Contrôle d'accès moindre privilège | À implémenter : pas de séparation de rôles IAM/PostgreSQL en dev ; cible documentée | RSSI |
 | Tests d'équité et atténuation des biais | **Partiellement fait** : tests faits et vérifiés sur données réelles (`ml/fairness/audit.py`, [docs/model_fairness.md](model_fairness.md)) ; **atténuation non faite**, tension documentée comme point ouvert à trancher avant production | Architecte IA |
