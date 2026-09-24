@@ -61,7 +61,6 @@ def _synthetic_gold_features(n_per_year: int = 60) -> pl.DataFrame:
     columns["nb_vehicules"] = list(rng.integers(1, 4, size=n))
     columns["nb_usagers"] = list(rng.integers(1, 5, size=n))
     columns["mois"] = list(rng.integers(1, 13, size=n))
-    columns["jour_semaine"] = list(rng.integers(1, 8, size=n))
     columns["agglomeration"] = list(rng.choice([True, False], size=n))
     columns[LABEL_COLUMN] = list(rng.choice([True, False], size=n, p=[0.35, 0.65]))
 

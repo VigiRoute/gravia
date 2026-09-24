@@ -399,9 +399,10 @@ def run_benchmark(engine: sa.Engine, feature_set: FeatureSet = "baseline") -> li
     train, valid, test = split_train_valid_test(df)
     # Ordre chronologique requis par `TimeSeriesSplit` dans `_search_hyperparameters` : `train`
     # n'est pas garanti trié en sortie de `load_gold_features` (ordre de la requête SQL, pas de
-    # l'accident). `annee` seule suffirait à éviter la fuite ; `mois`/`jour_semaine` affinent
-    # l'ordre à l'intérieur d'une même année sans coût supplémentaire.
-    train = train.sort([YEAR_COLUMN, "mois", "jour_semaine"])
+    # l'accident). `annee` seule suffirait à éviter la fuite ; `mois` affine l'ordre à l'intérieur
+    # d'une même année sans coût supplémentaire (`jour_semaine` affinait plus finement encore mais
+    # a disparu de Gold, cf. `gravia.gold` — pseudonymisation, plus de jour exact).
+    train = train.sort([YEAR_COLUMN, "mois"])
 
     x_train = _to_pandas(train, categorical, other)
     x_valid = _to_pandas(valid, categorical, other)

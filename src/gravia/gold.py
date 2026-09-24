@@ -24,16 +24,18 @@ schéma physique (`gold_fact_accident`, `gold_dim_date`, `gold_dim_lieu`, `gold_
       pour reproduire le baseline déjà validé (`notebooks/eda_baseline_baac.ipynb`), qui les utilise
       tous. Trouvé en préparant `ml/features` — corrigé avant d'aller plus loin plutôt que de
       construire les features sur un Gold structurellement incomplet.
+    - `gold_dim_date` ne porte que `annee`/`mois`/`heure`, pas le jour exact : `jour_ferie` et
+      `weekend` (enrichissements ajoutés puis retirés, cf. historique git) en dépendaient
+      entièrement et ont disparu avec lui. Pseudonymisation (cf. `gravia.silver`,
+      docs/AIPD_GRAVIA.md) : combinée au département déjà agrégé, une date exacte peut rester le
+      seul accident du jour dans sa cellule. `jour_semaine` (seule des trois réellement utilisée
+      comme feature, ~0,3 % du gain du modèle) a été retirée pour la même raison, cf.
+      `notebooks/eval_ablation_date.ipynb`.
 
 Construction du label : `is_grave` = au moins un usager avec `grav ∈ {2, 3}` (tué ou hospitalisé)
 rattaché à l'accident (cf. CLAUDE.md, définition de la cible ; CDC §3). Une absence totale
 d'usager rattaché à un accident est traitée comme une anomalie de données et lève une exception
 plutôt que de deviner silencieusement une étiquette.
-
-`jour_ferie` est un enrichissement neuf, non testé en amont dans un notebook (contrairement aux
-autres colonnes de ce module) : calculé pour les jours fériés légaux de France métropolitaine
-(8 dates fixes + 3 dates mobiles dérivées de Pâques via `dateutil.easter`, désormais dépendance
-figée explicite du projet).
 
 Utilisation :
     python -m gravia.gold                  # charge 2019-2023 dans PostgreSQL
@@ -46,11 +48,9 @@ import argparse
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date, timedelta
 
 import polars as pl
 import sqlalchemy as sa
-from dateutil.easter import easter
 
 from gravia.bronze import DEFAULT_YEARS
 from gravia.config import PROJECT_ROOT, Settings, get_settings
@@ -80,18 +80,6 @@ COLLISION_LABELS: dict[int, str] = {
     7: "Sans collision",
 }
 COLLISION_LABEL_UNKNOWN = "Non renseigné"
-
-#: Jours fériés fixes (mois, jour) — France métropolitaine.
-FIXED_HOLIDAYS: tuple[tuple[int, int], ...] = (
-    (1, 1),  # Jour de l'an
-    (5, 1),  # Fête du Travail
-    (5, 8),  # Victoire 1945
-    (7, 14),  # Fête nationale
-    (8, 15),  # Assomption
-    (11, 1),  # Toussaint
-    (11, 11),  # Armistice
-    (12, 25),  # Noël
-)
 
 GOLD_SCHEMA_PATH = PROJECT_ROOT / "data" / "models" / "gold_schema.sql"
 
@@ -125,9 +113,10 @@ class DimensionSpec:
         key_column: Colonne de clé de substitution (`SERIAL`).
         conflict_columns: Colonnes de la contrainte `UNIQUE`, utilisées comme cible `ON CONFLICT`
             et comme clé de jointure pour ramener la clé de substitution dans la table de faits.
-        insert_columns: Colonnes effectivement écrites à l'insertion (sur-ensemble de
-            `conflict_columns` pour `gold_dim_date`, dont les attributs dérivés de `jour`
-            dépendent de la date mais ne font pas partie de la contrainte d'unicité).
+        insert_columns: Colonnes effectivement écrites à l'insertion (identique à
+            `conflict_columns` pour toutes les dimensions actuelles : aucune ne porte plus
+            d'attribut dérivé hors de sa clé d'unicité, depuis le retrait de `jour_semaine`/
+            `weekend`/`jour_ferie` de `gold_dim_date`).
     """
 
     table: str
@@ -139,8 +128,8 @@ class DimensionSpec:
 DATE_DIM = DimensionSpec(
     table="gold_dim_date",
     key_column="date_key",
-    conflict_columns=("jour", "heure"),
-    insert_columns=("jour", "heure", "jour_semaine", "weekend", "mois", "jour_ferie"),
+    conflict_columns=("annee", "mois", "heure"),
+    insert_columns=("annee", "mois", "heure"),
 )
 LIEU_DIM_COLUMNS = (
     "departement",
@@ -174,25 +163,6 @@ COLLISION_DIM = DimensionSpec(
     conflict_columns=("type_collision",),
     insert_columns=("type_collision",),
 )
-
-
-def french_public_holidays(year: int) -> set[date]:
-    """Jours fériés légaux de France métropolitaine pour une année donnée.
-
-    Args:
-        year: Année.
-
-    Returns:
-        L'ensemble des 11 dates fériées (8 fixes + 3 mobiles dérivées de Pâques).
-    """
-    easter_sunday = easter(year)
-    movable = {
-        easter_sunday + timedelta(days=1),  # Lundi de Pâques
-        easter_sunday + timedelta(days=39),  # Ascension
-        easter_sunday + timedelta(days=50),  # Lundi de Pentecôte
-    }
-    fixed = {date(year, month, day) for month, day in FIXED_HOLIDAYS}
-    return fixed | movable
 
 
 def aggregate_vehicules(df: pl.DataFrame) -> pl.DataFrame:
@@ -270,9 +240,11 @@ def build_fact_frame(year: int, settings: Settings) -> pl.DataFrame:
             "construire is_grave."
         )
 
-    holidays = sorted(french_public_holidays(year))
+    # Validité de la date gardée comme contrôle qualité (filtre les lignes non exploitables), sans
+    # que le jour exact ne soit conservé dans Gold — pseudonymisation, cf. src/gravia/silver.py,
+    # docs/AIPD_GRAVIA.md : combinée au département déjà agrégé, une date exacte peut rester le
+    # seul accident du jour dans sa cellule.
     accident_date = pl.date(pl.col("an"), pl.col("mois"), pl.col("jour"))
-    weekday = accident_date.dt.weekday()
 
     df = df.with_columns(accident_date.alias("_jour_date"))
     n_before = df.height
@@ -283,12 +255,9 @@ def build_fact_frame(year: int, settings: Settings) -> pl.DataFrame:
 
     return df.select(
         pl.col("Num_Acc").alias("accident_id"),
-        pl.col("_jour_date").alias("jour"),
+        pl.col("an").alias("annee"),
         pl.col("hrmn").str.slice(0, 2).cast(pl.Int8, strict=False).alias("heure"),
-        weekday.alias("jour_semaine"),
-        weekday.is_in([6, 7]).alias("weekend"),
         pl.col("mois"),
-        pl.col("_jour_date").is_in(holidays).alias("jour_ferie"),
         pl.col("dep").alias("departement"),
         (pl.col("agg").fill_null(-1) == 2).alias("agglomeration"),
         pl.col("int").fill_null(-1).alias("intersection"),

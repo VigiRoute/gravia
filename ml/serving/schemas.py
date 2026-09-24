@@ -6,10 +6,11 @@ docs/ml_training_results.md) — pas à toutes les colonnes de `gold_fact_accide
 numériques reprennent le dictionnaire officiel ONISR (cf. CLAUDE.md, documentation de référence) ;
 `-1` signifie « non renseigné » pour la quasi-totalité d'entre eux, comme dans le BAAC source.
 
-`heure`/`mois`/`jour_semaine` ne sont pas des champs de la requête : dérivés côté serveur depuis
-`moment` (l'instant du signalement), pour ne pas demander à l'appelant de calculer lui-même un
-jour de semaine ISO — l'anti-leakage (CLAUDE.md) est respecté puisque `moment` est par définition
-connu au moment du signalement.
+`heure`/`mois` ne sont pas des champs de la requête : dérivés côté serveur depuis `moment`
+(l'instant du signalement) — l'anti-leakage (CLAUDE.md) est respecté puisque `moment` est par
+définition connu au moment du signalement. `jour_semaine` était dérivée de la même façon jusqu'à
+son retrait du modèle (cf. `gravia.gold`, docs/AIPD_GRAVIA.md) : elle dépendait du jour exact,
+retiré de Gold par pseudonymisation.
 """
 
 from __future__ import annotations

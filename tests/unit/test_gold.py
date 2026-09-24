@@ -1,6 +1,5 @@
 """Tests unitaires de la couche Gold (src/gravia/gold.py)."""
 
-from datetime import date
 from pathlib import Path
 
 import polars as pl
@@ -12,7 +11,6 @@ from gravia.gold import (
     aggregate_usagers,
     aggregate_vehicules,
     build_fact_frame,
-    french_public_holidays,
 )
 from gravia.silver import silver_path
 
@@ -42,20 +40,6 @@ def _settings(tmp_path: Path) -> Settings:
             raw=tmp_path / "raw", bronze=tmp_path / "bronze", silver=tmp_path / "silver"
         )
     )
-
-
-def test_french_public_holidays_2023_fixed_and_movable_dates() -> None:
-    """Vérifié contre les dates de Pâques 2023 connues (dimanche 9 avril)."""
-    holidays = french_public_holidays(2023)
-
-    assert date(2023, 1, 1) in holidays  # Jour de l'an
-    assert date(2023, 7, 14) in holidays  # Fête nationale
-    assert date(2023, 12, 25) in holidays  # Noël
-    assert date(2023, 4, 10) in holidays  # Lundi de Pâques (Pâques + 1)
-    assert date(2023, 5, 18) in holidays  # Ascension (Pâques + 39)
-    assert date(2023, 5, 29) in holidays  # Lundi de Pentecôte (Pâques + 50)
-    assert len(holidays) == 11
-    assert date(2023, 4, 9) not in holidays  # Pâques (dimanche) n'est pas férié en soi
 
 
 def test_aggregate_vehicules_flags_and_counts() -> None:
@@ -196,8 +180,8 @@ def test_build_fact_frame_joins_tables_and_derives_dimensions(tmp_path: Path) ->
     assert acc1["flag_2roues_motorise"].item() is True
     assert acc1["nb_vehicules"].item() == 2
     assert acc1["departement"].item() == "75"
-    assert acc1["jour_ferie"].item() is True  # 1er janvier
-    assert acc1["weekend"].item() is True  # 2023-01-01 est un dimanche
+    assert acc1["annee"].item() == 2023
+    assert acc1["mois"].item() == 1
     assert acc1["heure"].item() == 8
     assert acc1["intersection"].item() == 1
     assert acc1["regime_circulation"].item() == 2

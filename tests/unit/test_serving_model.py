@@ -58,7 +58,6 @@ def test_build_feature_frame_derives_temporal_fields_from_moment() -> None:
 
     assert frame["heure"].iloc[0] == 9.0
     assert frame["mois"].iloc[0] == 8.0
-    assert frame["jour_semaine"].iloc[0] == 4.0  # ISO : jeudi = 4
 
 
 def test_build_feature_frame_decodes_collision_code_to_gold_label() -> None:

@@ -6,7 +6,46 @@
 > [CLAUDE.md](../CLAUDE.md) et les docs référencées ; ce fichier ne fait que pointer dessus et
 > dire *où on en est*.
 
-**Dernière mise à jour :** 2026-09-24. `com` (commune) supprimée en Silver
+**Dernière mise à jour :** 2026-09-24. Jour exact retiré de `gold_dim_date` (`src/gravia/gold.py`),
+suite logique du retrait de `com` (entrée précédente) sur la même question RGPD de l'utilisateur
+(« est-ce qu'on pourrait enlever l'année aussi ? », clarifié en généralisation de la date plutôt
+que retrait du millésime) : le département seul (déjà la seule localisation restante) combiné au
+jour exact de l'accident pouvait rester le même vecteur de ré-identification résiduel, à
+granularité moindre. `gold_dim_date` ne porte plus que `annee`/`mois`/`heure` — `jour_semaine`/
+`weekend`/`jour_ferie` en dépendaient entièrement et disparaissent avec lui (colonne DDL, index
+UNIQUE `(jour, heure)` → `(annee, mois, heure)`).
+
+Contrairement à `com`, `jour_semaine` était une **feature activement utilisée par le modèle
+déployé** (les deux autres jamais utilisées) : passage de 24 à 23 features en config `"enriched"`,
+ce qui a forcé un **vrai réentraînement + re-promotion** (pas qu'un retraitement Silver). Déjà
+anticipé par `notebooks/eval_ablation_date.ipynb` (§ précédente) : recall 0,808 / F1 macro 0,726,
+**rigoureusement identiques** à la v5 avec `jour_semaine` — confirmé empiriquement, pas juste
+supposé. Modèle réentraîné et re-promu en v6 (`register_best`, alias `staging`). Config
+`"baseline"` (référence CDC §13.7, jamais déployée mais citée partout) également revérifiée par
+cohérence : cf. `docs/ml_training_results.md` pour le détail des deux runs.
+
+Schéma Postgres migré (anciennes tables Gold supprimées, DDL mis à jour dans
+`data/models/gold_schema.sql`, rechargées entièrement depuis Silver) : **273 226 accidents,
+compte inchangé** (vérifié). Image `serving` reconstruite (pas qu'un `docker restart` — le modèle
+n'aurait pas chargé, 24 vs 23 features, erreur LightGBM `The number of features in data (24) is
+not the same as it was in training data (23)`, trouvée et corrigée en testant une vraie
+prédiction) ; `/v1/predict-severity` revérifié en direct après reconstruction. `python-dateutil`
+retiré des dépendances (`pyproject.toml`) : n'était utilisé que pour le calcul des jours fériés
+(`jour_ferie`), désormais disparu. 6 fichiers de tests mis à jour (`test_gold.py`,
+`test_serving_model.py`, `test_benchmark_mlflow.py` en unitaire ; les tests d'intégration Gold ne
+référençaient déjà pas ces colonnes), 60 tests unitaires + 11 tests d'intégration passent.
+`docs/AIPD_GRAVIA.md`, `docs/Gouvernance_GRAVIA.md`/`.docx` et
+`docs/Architecture_GRAVIA.md` (diagramme ER `DIM_DATE`) mis à jour.
+
+**Vrai incident trouvé et corrigé en vérifiant la config `"baseline"` par cohérence** :
+`python -m ml.training.benchmark --feature-set baseline` a écrasé l'alias `staging` avec le
+LightGBM baseline (v7, 19 features), remplaçant le v6 enriched réellement déployé — le CLI ne
+distingue pas « mesurer » de « mesurer et promouvoir en production ». Repéré en revérifiant
+`/health` (version inattendue), corrigé en repointant l'alias sur v6, `serving` reconstruit et
+reprédiction confirmée. Détail complet et point ouvert (pas de mode « comparer sans promouvoir »
+dans le CLI) dans `docs/ml_training_results.md`.
+
+**Mise à jour précédente :** 2026-09-24. `com` (commune) supprimée en Silver
 (`src/gravia/silver.py::CARACTERISTIQUES_DROPPED_COLUMNS`), trouvé en creusant une question RGPD
 explicite de l'utilisateur sur la conservation de la date : `com` restait conservée alors que
 combinée à la date exacte de l'accident, une commune peu accidentogène peut rester le seul
@@ -23,7 +62,7 @@ passent. **Silver régénéré et resynchronisé sur MinIO pour les 5 millésime
 sur l'objet S3, pas seulement en local : `com` absent, `dep` présent) — Docker Desktop s'était
 arrêté en cours de route, relancé par l'utilisateur puis resynchronisation confirmée.
 
-**Mise à jour précédente :** 2026-09-23. Ablation des features dérivées de la date
+**Mise à jour d'avant :** 2026-09-23. Ablation des features dérivées de la date
 (`notebooks/eval_ablation_date.ipynb`), sur question explicite (« est-ce que la date apporte
 quelque chose ? ») après avoir constaté que `departement` domine à 58,2 % le gain du modèle
 `@staging` (importance native LightGBM) contre `heure` 1,0 %, `jour_semaine` 0,3 %, `mois` 0,1 %.
@@ -33,7 +72,7 @@ F1 macro 0,724 (vs 0,726) — **écart dans le bruit**, les deux seuils CDC rest
 empiriquement que ces features n'apportent rien de mesurable. Ne modifie pas le modèle déployé
 (pas d'appel à `register_best`, run MLflow tracké mais non enregistré au registry).
 
-**Mise à jour d'avant :** 2026-09-22. Correctif Prometheus multiprocess
+**Mise à jour antérieure :** 2026-09-22. Correctif Prometheus multiprocess
 (`infra/serving/Dockerfile`), trouvé en préparant la démo : le panel Grafana « Total requêtes
 /v1/predict-severity » retombait de façon non monotone (ex. 15 → 2, vérifié via l'API range de
 Prometheus) alors que le conteneur n'avait jamais redémarré (`RestartCount=0`). Cause réelle : les
@@ -46,7 +85,7 @@ dossier est recréé vide dans le `CMD` (pas seulement à la construction de l'i
 40 requêtes concurrentes → compteur agrégé à 40 (4 fichiers `counter_<pid>.db`, un par worker),
 puis incréments séquentiels 41/42/43 sans régression.
 
-**Mise à jour antérieure :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
+**Mise à jour plus ancienne :** 2026-09-22. Démo visuelle de l'API (`ml/serving/static/index.html`,
 montée sur `GET /demo` par `ml/serving/api.py`), sur demande explicite pour une présentation à
 l'oral : formulaire pré-rempli qui appelle `POST /v1/predict-severity` en JavaScript, affiche le
 verdict, la jauge de probabilité avec le seuil, et les contributions SHAP. Montée sur la même
@@ -66,7 +105,7 @@ directement le modèle `@staging` via `ml.serving.model`, même chemin de code q
 modèle dédié comme `eval_seuil_par_zone.ipynb`. Ne change rien au modèle déployé : sert
 d'argument de présentation, pas un correctif appliqué dans l'urgence.
 
-**Mise à jour plus ancienne :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
+**Mise à jour encore plus ancienne :** 2026-09-21. Journalisation des prédictions passée en JSON structuré
 (EF-7, `ml/serving/api.py`), sur demande explicite après une relecture des docs en retard : les
 deux logs du serving (`modele_charge`, `prediction`) utilisaient encore l'interpolation `%s` dans
 un message texte, pas des champs nommés — interrogeable seulement au regex, pas au `jq` ni par un
@@ -80,22 +119,6 @@ valide avec les champs attendus (`event`, `departement`, `gravite_predite`, `pro
 `seuil_decision`, `modele_version`) ; les logs d'accès uvicorn (loggers séparés, non affectés)
 restent inchangés. 4 tests ajoutés (3 unitaires sur le formatter en isolation, 1 d'intégration
 sur la vraie ligne de log émise par l'API).
-
-**Mise à jour encore plus ancienne :** 2026-09-21. Alertes Grafana ajoutées (`infra/grafana/provisioning/
-alerting/rules.yml`), sur demande explicite après une relecture des docs en retard : le dashboard
-provisionné (cf. entrée du 2026-09-13) affichait déjà les seuils CDC ENF-1 (p95) et un taux
-d'erreur opérationnel, mais rien n'était câblé à une évaluation continue — 3 règles ajoutées
-(p95 > 300 ms 5 min, taux d'erreur > 1 % 5 min, cible Prometheus injoignable 1 min), pas de canal
-de notification externe câblé (pas de relais SMTP/webhook réel dans la stack dev, un canal factice
-serait trompeur) : l'état Normal/Pending/Firing reste vérifiable dans Alerting > Alert rules,
-suffisant pour démontrer la capacité de détection. **Vrai bug trouvé et corrigé en testant** :
-la requête de taux d'erreur renvoyait un vecteur Prometheus vide (pas 0) tant qu'aucune erreur
-n'était jamais survenue, la division disparaissait entièrement au lieu de valoir 0, déclenchant à
-tort du NoData sur du trafic parfaitement sain — corrigé avec `or vector(0)` sur le numérateur.
-**Vérifié de bout en bout sur un vrai cycle** : conteneur `serving` arrêté à la main → règle
-« cible injoignable » passe Normal → Pending → Firing (~1 min) → conteneur redémarré → retour à
-Normal confirmé ; les 3 règles vérifiées `Normal` sous trafic réel soutenu (5 min, aucun faux
-positif).
 
 **Dernière mise à jour structurante :** 2026-09-13. Dashboard Grafana latence/débit/erreurs de
 l'API (`/metrics` instrumenté, `infra/grafana/provisioning/dashboards/`) : dernière promesse de

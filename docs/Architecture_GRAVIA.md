@@ -230,12 +230,9 @@ erDiagram
     }
     DIM_DATE {
         int date_key PK
-        date jour
-        int heure
-        int jour_semaine
-        boolean weekend
+        int annee
         int mois
-        boolean jour_ferie
+        int heure
     }
     DIM_LIEU {
         int lieu_key PK
