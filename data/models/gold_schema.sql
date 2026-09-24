@@ -8,15 +8,18 @@
 -- contrainte UNIQUE ci-dessous serve de clé de déduplication fiable (PostgreSQL ne déduplique
 -- pas des colonnes NULL sous UNIQUE/ON CONFLICT).
 
+-- Grain volontairement au mois, pas au jour : `jour` (date exacte) a été retiré (pseudonymisation,
+-- cf. src/gravia/silver.py, docs/AIPD_GRAVIA.md) — combinée au département déjà agrégé, une date
+-- exacte peut rester le seul accident du jour dans sa cellule. `jour_semaine`/`weekend`/
+-- `jour_ferie` en dépendaient entièrement (calculables seulement à partir du jour exact) et
+-- disparaissent avec elle : aucune des trois n'était utilisée en aval sauf `jour_semaine`
+-- (feature du modèle, ~0,3 % du gain total, cf. notebooks/eval_ablation_date.ipynb).
 CREATE TABLE IF NOT EXISTS gold_dim_date (
     date_key        SERIAL PRIMARY KEY,
-    jour            DATE NOT NULL,
-    heure           SMALLINT NOT NULL,
-    jour_semaine    SMALLINT NOT NULL,     -- ISO 8601 : 1 = lundi .. 7 = dimanche
-    weekend         BOOLEAN NOT NULL,
+    annee           SMALLINT NOT NULL,
     mois            SMALLINT NOT NULL,
-    jour_ferie      BOOLEAN NOT NULL,      -- jour férié légal France métropolitaine
-    UNIQUE (jour, heure)
+    heure           SMALLINT NOT NULL,
+    UNIQUE (annee, mois, heure)
 );
 
 -- Regroupe les attributs structurels du lieu (route/infrastructure), qu'ils viennent de la

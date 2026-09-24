@@ -13,9 +13,15 @@ Trois groupes de colonnes, pour ne pas mélanger ce qui est prouvé et ce qui ne
     - `ENRICHED_FLAG_COLUMNS` : les 4 flags véhicule/usager de la meilleure configuration testée
       (`flag_2roues_motorise`/`flag_poids_lourd`/`flag_velo_edp`/`flag_pieton`).
     - `UNVALIDATED_*` : colonnes disponibles dans Gold mais jamais testées dans aucun notebook
-      (`weekend`, `jour_ferie`, `nb_usagers`). Exposées séparément plutôt que mélangées aux
-      groupes ci-dessus : les utiliser comme features est une expérimentation à part entière, à
-      comparer au protocole existant avant d'être adoptée (cf. CLAUDE.md, référence baseline).
+      (`nb_usagers`). Exposées séparément plutôt que mélangées aux groupes ci-dessus : les
+      utiliser comme features est une expérimentation à part entière, à comparer au protocole
+      existant avant d'être adoptée (cf. CLAUDE.md, référence baseline).
+
+`jour_semaine` retirée de `BASELINE_NUMERIC_COLUMNS` (présente dans le baseline d'origine, ~0,3 %
+du gain du modèle, cf. `notebooks/eval_ablation_date.ipynb`) : `gold_dim_date` ne porte plus le
+jour exact de l'accident, pseudonymisation (cf. `gravia.silver`, docs/AIPD_GRAVIA.md — combinée au
+département déjà agrégé, une date exacte peut rester le seul accident du jour dans sa cellule).
+`weekend`/`jour_ferie` (jamais utilisées comme features) ont disparu de Gold pour la même raison.
 
 `type_collision` est un changement de représentation, pas une nouvelle feature : c'est le même
 signal que le `col` du notebook (code catégoriel), mais décodé en libellé texte par Gold — un
@@ -50,14 +56,14 @@ BASELINE_CATEGORICAL_COLUMNS: tuple[str, ...] = (
     "situation",
 )
 
-#: Reprises telles quelles de NUMERIC_FEATURES (notebooks/eda_baseline_baac.ipynb).
+#: Reprises telles quelles de NUMERIC_FEATURES (notebooks/eda_baseline_baac.ipynb), sauf
+#: `jour_semaine` : retirée avec le jour exact de `gold_dim_date` (cf. docstring module).
 BASELINE_NUMERIC_COLUMNS: tuple[str, ...] = (
     "nb_voies",
     "vitesse_max",
     "heure",
     "nb_vehicules",
     "mois",
-    "jour_semaine",
 )
 
 #: `agg` du baseline d'origine (code catégoriel 1/2) ; Gold le stocke en booléen propre.
@@ -73,8 +79,7 @@ ENRICHED_FLAG_COLUMNS: tuple[str, ...] = (
     "flag_pieton",
 )
 
-#: Disponibles dans Gold, jamais testées : cf. docstring module.
-UNVALIDATED_BOOLEAN_COLUMNS: tuple[str, ...] = ("weekend", "jour_ferie")
+#: Disponible dans Gold, jamais testée : cf. docstring module.
 UNVALIDATED_NUMERIC_COLUMNS: tuple[str, ...] = ("nb_usagers",)
 
 LABEL_COLUMN = "is_grave"
@@ -97,10 +102,7 @@ _GOLD_QUERY = """
         f.flag_velo_edp,
         f.flag_pieton,
         d.heure,
-        d.jour_semaine,
-        d.weekend,
         d.mois,
-        d.jour_ferie,
         l.departement,
         l.agglomeration,
         l.intersection,

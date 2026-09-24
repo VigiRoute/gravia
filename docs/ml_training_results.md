@@ -41,20 +41,67 @@ d'hyperparamètres » ci-dessous) :
 
 | Modèle | Recall grave | F1 macro | Seuil calibré | Seuils CDC |
 |---|---|---|---|---|
-| Régression logistique | 0,807 | 0,708 | 0,45 | Atteints |
-| Random Forest | 0,813 | 0,712 | 0,44 | Atteints |
+| Régression logistique | 0,806 | 0,707 | 0,45 | Atteints |
+| Random Forest | 0,804 | 0,716 | 0,45 | Atteints |
 | **LightGBM** | 0,808 | **0,726** | 0,47 | **Atteints** |
-| XGBoost | 0,603 | 0,563 | 0,49 | Non atteints (recall < 0,80) |
+| XGBoost | 0,714 | 0,480 | 0,47 | Non atteints (recall < 0,80) |
 
 → **LightGBM reste le meilleur modèle**, seul candidat au-dessus de 0,72 de F1 macro. L'enrichissement
 seul (sans calibration par département) apporte un vrai gain de F1 macro par rapport au baseline
 (0,707/0,708 → 0,726) sans coût sur le recall, pour les trois modèles qui le franchissent.
 **Meilleur modèle du benchmark toutes configurations confondues, promu à l'alias `staging`**
 (`gravia-severity-classifier` v2, 2026-08-27, décision explicite de l'utilisateur ; réentraîné et
-re-promu en v4 le 2026-09-20 lors de l'ajout de XGBoost au comparatif, puis en v5 le 2026-09-21 lors
-de l'ajout de la recherche d'hyperparamètres, performance quasi inchangée les deux fois). Rechargé
-après promotion et revérifié :
+re-promu en v4 le 2026-09-20 lors de l'ajout de XGBoost au comparatif, en v5 le 2026-09-21 lors de
+l'ajout de la recherche d'hyperparamètres, puis en v6 le 2026-09-24 lors du retrait de
+`jour_semaine` — cf. « Retrait de `jour_semaine` » ci-dessous, performance quasi inchangée à
+chaque fois sauf pour XGBoost, jamais promu). Rechargé après promotion et revérifié :
 `mlflow.lightgbm.load_model("models:/gravia-severity-classifier@staging")` prédit correctement.
+
+### Retrait de `jour_semaine` (2026-09-24)
+
+Sur question RGPD explicite de l'utilisateur (« est-ce qu'on pourrait enlever l'année aussi ? »,
+en creusant la conservation de la date) : `gold_dim_date` ne porte plus le jour exact de
+l'accident (pseudonymisation, cf. `gravia.silver`, docs/AIPD_GRAVIA.md — combinée au département
+déjà agrégé, une date exacte peut rester le seul accident du jour dans sa cellule). `jour_semaine`,
+seule des trois colonnes dérivées (`jour_semaine`/`weekend`/`jour_ferie`) réellement utilisée comme
+feature, disparaît avec le jour exact — passage de 24 à 23 features en config `"enriched"`.
+
+Déjà anticipé par l'ablation ci-dessus (§ « Apport des features dérivées de la date ») : l'écart
+constaté ici est **nul pour LightGBM** (recall 0,808, F1 macro 0,726, rigoureusement identiques à
+la v5 avec `jour_semaine`). Régression logistique et Random Forest bougent légèrement (bruit de
+recherche d'hyperparamètres, pas un effet de `jour_semaine` en soi). XGBoost reste sous le seuil
+CDC de recall dans les deux cas, la conclusion (écarté) ne change pas.
+
+Schéma Postgres migré (`gold_dim_date` recréée avec `annee`/`mois`/`heure`, `jour`/`jour_semaine`/
+`weekend`/`jour_ferie` retirées) : les anciennes tables Gold ont été supprimées puis rechargées
+entièrement depuis Silver (`python -m gravia.gold`), 273 226 accidents, compte inchangé. `com`
+(commune) avait déjà été retirée de Silver la veille pour la même raison (cf. AVANCEMENT_GRAVIA.md,
+2026-09-24) ; ce retrait-ci s'attaque à la date plutôt qu'au lieu.
+
+Config `"baseline"` (référence CDC §13.7, jamais déployée mais citée partout) revérifiée par
+cohérence, mêmes 4 modèles :
+
+| Modèle | Recall grave | F1 macro | Seuil calibré | Seuils CDC |
+|---|---|---|---|---|
+| Régression logistique | 0,812 | 0,692 | 0,43 | Non atteints (F1 macro < 0,70) |
+| Random Forest | 0,806 | 0,699 | 0,43 | Non atteints (F1 macro < 0,70) |
+| **LightGBM** | 0,810 | 0,707 | 0,44 | **Atteints** |
+| XGBoost | 0,676 | 0,465 | 0,46 | Non atteints |
+
+LightGBM baseline (0,810/0,707) reste cohérent avec la référence historique (0,808/0,708,
+`notebooks/eda_baseline_baac.ipynb`) — écart du même ordre que le bruit déjà documenté pour la
+recherche d'hyperparamètres, pas un effet du retrait de `jour_semaine`.
+
+**Incident trouvé et corrigé pendant cette vérification** : lancer ce run baseline via le point
+d'entrée standard (`python -m ml.training.benchmark --feature-set baseline`) a **écrasé l'alias
+`staging` du registry avec le LightGBM baseline (v7, 19 features)**, remplaçant le LightGBM
+enriched (v6, 23 features) réellement déployé — `register_best`/`main()` ne distingue pas « juste
+mesurer » de « mesurer et promouvoir », il promeut systématiquement le meilleur candidat du run à
+l'alias partagé par la production. Repéré immédiatement en revérifiant `/health` (version inattendue),
+corrigé en repointant l'alias sur la v6 (`client.set_registered_model_alias(..., "staging", 6)`),
+`serving` reconstruit et reprédiction vérifiée. **Point ouvert non traité ici** : le CLI n'offre pas
+de mode « comparer sans promouvoir » — relancer un benchmark secondaire pour vérifier une hypothèse
+reste risqué pour le modèle réellement déployé tant que ce n'est pas séparé.
 
 ### Recherche d'hyperparamètres (2026-09-21)
 

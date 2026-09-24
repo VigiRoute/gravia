@@ -49,7 +49,6 @@ dependencies = [
     # Divers
     "boto3==1.43.56",
     "python-dotenv==1.2.2",
-    "python-dateutil==2.9.0.post0",
 ]
 
 [project.optional-dependencies]

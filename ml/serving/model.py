@@ -114,7 +114,6 @@ def build_feature_frame(
         "heure": float(request.moment.hour),
         "nb_vehicules": float(request.nb_vehicules),
         "mois": float(request.moment.month),
-        "jour_semaine": float(request.moment.isoweekday()),
         "agglomeration": request.agglomeration,
         "flag_2roues_motorise": request.flag_2roues_motorise,
         "flag_poids_lourd": request.flag_poids_lourd,
