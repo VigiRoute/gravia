@@ -149,8 +149,10 @@ CDC sur les deux dépôts.
   - Baseline BAAC seul validée : recall 0,808 / F1 macro 0,708 (holdout 2023). Les deux seuils
     CDC sont atteints sans aucun enrichissement.
   - Enrichissement trafic (DATEX national + capteurs Paris) testé en modèle et **écarté** :
-    signal statistiquement réel mais gain prédictif nul. Le flux temps réel reste ingéré pour le
-    routage des secours, pas pour le modèle.
+    signal statistiquement réel mais gain prédictif nul. Une ingestion temps réel du flux DATEX
+    resterait pertinente pour le routage des secours (valeur opérationnelle, pas pour le modèle),
+    mais **n'a pas été implémentée** : le bus de messages (Redpanda) est provisionné, sans
+    producteur/consommateur applicatif branché (cf. C3.1 ci-dessous, CDC_GRAVIA.md §6.4/§13).
   - Bulletins d'incidents texte **retirés du périmètre** (aucune source réelle).
   - Angle mort du seuil unique documenté : recall 0,007 sur Paris vs 0,808 national. Seuils par
     département : recall Paris 0,777 mais F1 macro national tombe à 0,573 (sous seuil CDC).
@@ -456,7 +458,13 @@ CDC sur les deux dépôts.
   dans le dépôt lui-même (`gravia-mlops/CLAUDE.md`) :
   - **K8s** : manifests de déploiement du `serving` (Deployment/Service/ConfigMap/Secret),
     vérifiés sur un vrai cluster local (`kind`, choisi car LocalStack Community ne supporte même
-    pas ECR), scaling et auto-guérison testés en conditions réelles.
+    pas ECR), scaling manuel et auto-guérison testés en conditions réelles. **Autoscaling
+    (HorizontalPodAutoscaler)** ajouté le 2026-09-27 : `metrics-server` (patché
+    `--kubelet-insecure-tls`, requis sur `kind`) + HPA 2-5 répliques à 70 % CPU, vérifié avec de
+    vraies métriques (`kubectl get hpa` remonte un `%` réel, pic à 41 % sous charge générée). Bug
+    trouvé en testant : le Pod tournait une image `serving` périmée (2026-09-13), invisible via
+    `/health` mais provoquant une vraie erreur LightGBM (23 vs 24 features) sur une prédiction
+    réelle — corrigé par un rechargement d'image + rollout restart.
   - **Terraform** : un module par responsabilité (network/storage/compute/mlops, cf.
     `Architecture_GRAVIA.md` §6.2). Constaté en interrogeant l'API LocalStack directement :
     **ECR et RDS sont réservés à la licence Pro** (403 "not included within your LocalStack
@@ -547,9 +555,15 @@ CDC sur les deux dépôts.
 CDC : pipeline de données (Bronze→Silver→Quality→Gold, Airflow), solution IA (features,
 entraînement, serving, monitoring de dérive, équité), CI/CD des deux dépôts, IaC (Terraform/
 LocalStack), K8s (`kind`) et réentraînement planifié. Les suites possibles à partir d'ici
-relèvent de la finition (présentation orale, vidéos de démonstration exigées par le CDC §15,
-relecture globale de la documentation) plutôt que de nouvelles fonctionnalités ; à discuter avec
-l'utilisateur plutôt qu'à décider seul.
+relèvent de la finition (relecture globale de la documentation) plutôt que de nouvelles
+fonctionnalités ; à discuter avec l'utilisateur plutôt qu'à décider seul. Les vidéos de
+démonstration (CDC §15) et les 4 decks de présentation orale (Bloc 1 à 4, hors dépôt) sont
+**faits** — cf. ci-dessous.
+
+**Vidéos de démonstration (CDC §15, déroulé dans `Scripts_Videos_Demo.md`, hors dépôt dans
+`E:\videos-projet`)** : les 3 vidéos sont **tournées** — Vidéo 1 (Bloc 2, infrastructure
+Terraform/LocalStack + Kubernetes `kind`), Vidéo 2 (Bloc 3, pipeline Airflow), Vidéo 3 (Bloc 4,
+solution IA, avec le test department 45 + la vérification de dérive PSI réelle sur `departement`).
 
 ## Annexe : Correspondance avec le référentiel (Blocs 3 et 4)
 

@@ -333,7 +333,7 @@ Mesures **cibles** : statut réel de mise en œuvre détaillé dans Gouvernance 
 | Critère | Réponse |
 |---|---|
 | Montée en charge données | Polars en mémoire ; partitionnement Parquet par millésime |
-| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes, réplication fixe vérifiée (`replicas: 2`, `gravia-mlops/k8s/serving-deployment.yaml`) ; `HorizontalPodAutoscaler` non implémenté à ce jour |
+| Montée en charge service | Conteneurs FastAPI répliqués sur Kubernetes (`replicas: 2` au repos) ; `HorizontalPodAutoscaler` implémenté et vérifié sur `kind` (`metrics-server` + HPA 2-5 répliques, cible 70 % CPU, cf. `gravia-mlops/k8s/serving-hpa.yaml` et `gravia-mlops/docs/Deploiement_GRAVIA_MLOps.md`) |
 | Performance requêtes | Index PostgreSQL sur clés du schéma étoile |
 | Tolérance aux pannes | Redondance S3/RDS (cible), retries Airflow, redémarrage automatique des pods |
 | Reproductibilité | Versioning code (Git) + données (millésimes) + modèles (MLflow) |
